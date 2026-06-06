@@ -315,21 +315,29 @@ For a detailed breakdown of the entire project structure, API routes, database s
 
 ## API Endpoints
 
-| Endpoint              | Description                     |
-| --------------------- | ------------------------------- |
-| `/api/scan`           | Product sustainability analysis |
-| `/api/user`           | User management                 |
-| `/api/user/score`     | Eco-score management            |
-| `/api/user-packaging` | Packaging preferences           |
-| `/api/leaderboard`    | Community rankings              |
-| `/api/rewards`        | Rewards management              |
-| `/api/auth/google`    | Google authentication           |
+| Endpoint | Description |
+|----------|-------------|
+| `/api/auth/google` | Google Authentication |
+| `/api/auth/signin` | User Sign In |
+| `/api/auth/signup` | User Sign Up |
+| `/api/scan` | Product Sustainability Analysis |
+| `/api/user/avatar` | User Avatar Management |
+| `/api/user/score` | Eco Score Management |
+| `/api/user-packaging` | Packaging Preferences |
+| `/api/leaderboard` | Community Rankings |
+| `/api/rewards` | Rewards Management |
+| `/api/rewards/monthly-check` | Monthly Reward Validation |
+| `/api/debug-create-user` | Create Test User |
+| `/api/debug/points` | Debug Points Operations |
+| `/api/test-db` | Database Connection Test |
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
+
+> **Note:** EcoVerse requires Node.js 20 or later. Consider adding an `engines` field in `package.json` or a `.nvmrc` file to enforce the version across development environments.
 
 * Node.js 20+
 * npm or pnpm
@@ -352,17 +360,28 @@ npm install
 
 ### Configure Environment Variables
 
-Create a `.env.local` file:
+Create a `.env.local` file.
 
-You can obtain  Firebase credentials from the [Firebase Console](https://console.firebase.google.com/) and MongoDB URI from your [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster.
+You can obtain Firebase credentials from the [Firebase Console](https://console.firebase.google.com/) and MongoDB URI from your [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster and [Gemini Api](https://aistudio.google.com/app/api-keys)
 
 ```env
+# Firebase
 NEXT_PUBLIC_FIREBASE_API_KEY=
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=
 
+# MongoDB
 MONGODB_URI=
-```
+
+# Authentication
+JWT_SECRET=
+
+# Gemini AI
+GEMINI_API_KEY=
 
 ### Start Development Server
 
