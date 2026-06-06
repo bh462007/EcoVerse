@@ -54,7 +54,7 @@ Examples of representation include:
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainers through GitHub Issues or other official communication channels.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported directly to the project maintainers through official contact channels.
 
 All complaints will be reviewed and investigated promptly and fairly.
 
@@ -82,3 +82,4 @@ This Code of Conduct is adapted from the Contributor Covenant, version 2.1.
 For more information, visit:
 
 https://www.contributor-covenant.org/version/2/1/code_of_conduct/
+
