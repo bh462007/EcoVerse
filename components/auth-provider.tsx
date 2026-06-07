@@ -22,6 +22,7 @@ interface User {
   email: string
   name: string
   avatarId?: AvatarId
+  avatarCustomization?: any
   monthlyCarbon: number
   totalScanned: number
   joinedAt: string
@@ -48,13 +49,13 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
 
+  console.log("Context avatar:", user?.avatarId)
+
   useEffect(() => {
   const storedUser = localStorage.getItem("ecoverse-user")
-  const avatarId = localStorage.getItem("avatarId")
   if (storedUser) {
     const parsed = JSON.parse(storedUser)
-    const userWithAvatar = { ...parsed, avatarId } // ✅ merge avatarId
-    setUser(userWithAvatar)
+    setUser(parsed)
   }
 }, [])
 
@@ -202,16 +203,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
   
-  const updateAvatar = (avatarId: AvatarId) => {
-  if (user) {
-    const updatedUser = {
-      ...user,
-      avatarId,
+  const updateAvatar = async (avatarId: AvatarId) => {
+    if (user) {
+      console.log("Avatar saved:", avatarId)
+      const updatedUser = {
+        ...user,
+        avatarId,
+      }
+      setUser(updatedUser)
+      localStorage.setItem("ecoverse-user", JSON.stringify(updatedUser))
+
+      try {
+        await fetch("/api/user/avatar", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: user.email, avatarId })
+        })
+      } catch (err) {
+        console.error("Failed to update avatar on server:", err)
+      }
     }
-    setUser(updatedUser)
-    localStorage.setItem("ecoverse-user", JSON.stringify(updatedUser))
   }
-}
 
 
   return (
