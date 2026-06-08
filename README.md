@@ -90,30 +90,30 @@ Built with modern web technologies and AI powered analysis, EcoVerse combines ed
 
 ### Core Components
 
-#### Authentication
+#### 🔐 Authentication (Firebase Authentication)
 
-Firebase Authentication handles:
+Firebase Authentication powers secure user access and identity management throughout EcoVerse.
 
-* Google OAuth
-* Session management
-* User identity
+- **Google OAuth:** Allows users to sign in instantly using their existing Google accounts, eliminating the need to create new passwords.
+- **Session Management:** Keeps users securely logged into the platform across sessions while automatically handling authentication state.
+- **User Identity:** Creates and maintains unique user profiles that connect scan history, rewards, achievements, and sustainability data to individual accounts.
 
-#### Sustainability Engine
+#### 🌱 Sustainability Engine (AI-Powered Services)
 
-AI-powered services provide:
+The Sustainability Engine analyzes products and generates environmental insights to help users make informed sustainability decisions.
 
-* Carbon footprint estimation
-* Packaging analysis
-* Recyclability inference
+- **Carbon Footprint Estimation:** Calculates the estimated environmental impact and carbon emissions associated with scanned products.
+- **Packaging Analysis:** Evaluates packaging materials and characteristics to determine sustainability impact.
+- **Recyclability Inference:** Provides recycling recommendations and eco-friendly disposal guidance based on packaging information.
 
-#### Rewards Engine
+#### 🏆 Rewards Engine (Gamification & Tracking)
 
-Tracks:
+The Rewards Engine encourages sustainable behavior through points, achievements, and community-driven engagement.
 
-* Eco-points
-* Achievement badges
-* Monthly rewards
-* Leaderboard rankings
+- **Eco-points:** Awards points whenever users complete eco-friendly actions or scan products.
+- **Achievement Badges:** Unlocks milestone-based badges that recognize user progress and sustainability efforts.
+- **Monthly Rewards:** Tracks monthly milestones and distributes rewards for consistent participation.
+- **Leaderboard Rankings:** Displays real-time community rankings that encourage healthy competition and long-term engagement.
 
 ---
 
