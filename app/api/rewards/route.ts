@@ -38,24 +38,69 @@ export async function GET(req: Request) {
       const transactionIdsToConfirm = confirmationData.confirmedTransactions.map(t => t._id);
 
       // We perform an atomic update to move points from unconfirmed to confirmed status.
-      // capture the ground-truth updated document using { new: true }.
+      // We use an aggregation-pipeline update to ensure we only increment/decrement 
+      // based on transactions that are currently in 'unconfirmed' status, 
+      // preventing double-counting if a retry occurs.
       const updatedUser = await User.findOneAndUpdate(
         { email },
-        {
-          $inc: {
-            confirmedPoints: confirmationData.confirmedPoints,
-            unconfirmedPoints: -confirmationData.confirmedPoints
+        [
+          {
+            $set: {
+              // Calculate points from transactions that are actually still unconfirmed
+              matchedPoints: {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$rewardTransactions",
+                        as: "t",
+                        cond: {
+                          $and: [
+                            { $in: ["$$t._id", transactionIdsToConfirm] },
+                            { $eq: ["$$t.pointsType", "unconfirmed"] }
+                          ]
+                        }
+                      }
+                    },
+                    as: "mt",
+                    in: "$$mt.points"
+                  }
+                }
+              }
+            }
           },
-          $set: {
-            "rewardTransactions.$[t].pointsType": "confirmed",
-            "rewardTransactions.$[t].confirmedAt": now
-          }
-        },
-        {
-          arrayFilters: [{ "t._id": { $in: transactionIdsToConfirm } }],
-          new: true,
-          runValidators: true
-        }
+          {
+            $set: {
+              confirmedPoints: { $add: ["$confirmedPoints", "$matchedPoints"] },
+              unconfirmedPoints: { $subtract: ["$unconfirmedPoints", "$matchedPoints"] },
+              rewardTransactions: {
+                $map: {
+                  input: "$rewardTransactions",
+                  as: "t",
+                  in: {
+                    $cond: {
+                      if: {
+                        $and: [
+                          { $in: ["$$t._id", transactionIdsToConfirm] },
+                          { $eq: ["$$t.pointsType", "unconfirmed"] }
+                        ]
+                      },
+                      then: {
+                        $mergeObjects: [
+                          "$$t",
+                          { pointsType: "confirmed", confirmedAt: now }
+                        ]
+                      },
+                      else: "$$t"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          { $unset: "matchedPoints" }
+        ],
+        { new: true }
       );
 
       // Re-assign local user to the ground-truth updated document from DB.

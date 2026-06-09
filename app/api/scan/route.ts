@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import axios from "axios"
 import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
+import mongoose from "mongoose"
 import { calculateCarbonFootprint } from "@/lib/carbon-calculator"
 import {
   calculateScanPoints,
@@ -77,28 +78,10 @@ export async function POST(req: Request) {
       const isConfirmed = pointsData.isConfirmed
       const pointsEarned = pointsData.points
 
-      // --- PREDICTIVE SIDE-EFFECT CALCULATIONS ---
-      // We create a "virtual" updated state of the user to determine level-ups 
-      // and new achievements. This allows us to maintain complex business logic 
-      // while still using a single atomic database operation.
-      const virtualUser = {
-        ...user.toObject(),
-        totalScanned: (user.totalScanned || 0) + 1,
-        monthlyCarbon: (user.monthlyCarbon || 0) + carbonEstimate,
-        rewardPoints: (user.rewardPoints || 0) + pointsEarned,
-        totalPointsEarned: (user.totalPointsEarned || 0) + pointsEarned
-      }
-
-      const oldLevel = user.level || 1
-      const levelData = calculateLevel ? calculateLevel(virtualUser) : { level: oldLevel }
-      const earnedAchievements = checkAchievements ? checkAchievements(virtualUser) : []
-      const monthlyBonus = calculateMonthlyBonus ? calculateMonthlyBonus(virtualUser) : 0
-
       // --- ATOMIC DATABASE UPDATE ---
-      // We use findOneAndUpdate to eliminate the Read-Modify-Save race condition.
-      // We use $inc, $set, and $push to perform a partial update that is 
-      // naturally thread-safe at the MongoDB document level.
-      const updatedUser = await User.findOneAndUpdate(
+      // We perform the atomic increment to update points and scans first.
+      // We also push a new reward transaction record so it can be referenced later.
+      const initialUpdate = await User.findOneAndUpdate(
         { email: userEmail },
         {
           $inc: {
@@ -108,13 +91,6 @@ export async function POST(req: Request) {
             totalPointsEarned: pointsEarned,
             confirmedPoints: isConfirmed ? pointsEarned : 0,
             unconfirmedPoints: isConfirmed ? 0 : pointsEarned,
-            "points.confirmed": isConfirmed ? pointsEarned : 0,
-            "points.unconfirmed": isConfirmed ? 0 : pointsEarned
-          },
-          $set: {
-            level: levelData.level,
-            achievements: earnedAchievements,
-            updatedAt: new Date()
           },
           $push: {
             scans: {
@@ -122,6 +98,16 @@ export async function POST(req: Request) {
               carbonEstimate: carbonEstimate,
               category: carbonData.category,
               confidence: carbonData.confidence,
+              barcode: barcode,
+              date: new Date()
+            },
+            rewardTransactions: {
+              _id: new mongoose.Types.ObjectId(),
+              type: 'earned',
+              points: pointsEarned,
+              pointsType: isConfirmed ? 'confirmed' : 'unconfirmed',
+              reason: 'scan',
+              description: `Scanned ${product.product_name}`,
               barcode: barcode,
               date: new Date()
             }
@@ -133,8 +119,33 @@ export async function POST(req: Request) {
         }
       )
 
-      if (!updatedUser) {
-        return NextResponse.json({ error: "Failed to re-fetch user" }, { status: 500 })
+      if (!initialUpdate) {
+        return NextResponse.json({ error: "Failed to update user stats" }, { status: 500 })
+      }
+
+      // --- POST-UPDATE DERIVED CALCULATIONS ---
+      // Compute level, achievements, and bonuses based on the actual post-increment state.
+      const oldLevel = user.level || 1
+      const levelData = calculateLevel ? calculateLevel(initialUpdate.totalPointsEarned || 0) : { level: oldLevel }
+      const earnedAchievements = checkAchievements ? checkAchievements(initialUpdate) : []
+      const monthlyBonus = calculateMonthlyBonus ? calculateMonthlyBonus(initialUpdate) : 0
+
+      // Persist any changed level/achievements with a subsequent update.
+      let updatedUser = initialUpdate;
+      if (levelData.level > oldLevel || earnedAchievements.length > 0) {
+        updatedUser = await User.findOneAndUpdate(
+          { email: userEmail },
+          {
+            $set: {
+              level: levelData.level,
+              updatedAt: new Date()
+            },
+            $push: {
+              achievements: { $each: earnedAchievements }
+            }
+          },
+          { new: true }
+        ) || initialUpdate;
       }
 
       // We use the ground-truth data from 'updatedUser' for the final response.
