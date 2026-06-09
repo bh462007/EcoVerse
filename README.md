@@ -1,5 +1,8 @@
 # EcoVerse
 
+## 📺 Application Demo
+
+![EcoVerse Demo](./public/demo.gif)
 
 
 <p align="center">
