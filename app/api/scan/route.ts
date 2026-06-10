@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import axios from "axios"
 import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
+import mongoose from "mongoose"
 import { calculateCarbonFootprint } from "@/lib/carbon-calculator"
 import {
   calculateScanPoints,
@@ -77,61 +78,79 @@ export async function POST(req: Request) {
       const isConfirmed = pointsData.isConfirmed
       const pointsEarned = pointsData.points
 
-      // ✅ Update points directly in DB
-      const updateFields: any = {
-        $inc: {
-          monthlyCarbon: carbonEstimate,
-          totalScanned: 1,
-          ...(isConfirmed
-            ? { "points.confirmed": pointsEarned }
-            : { "points.unconfirmed": pointsEarned })
-        },
-        $push: {
-          scans: {
-            productName: product.product_name,
-            carbonEstimate: carbonEstimate,
-            category: carbonData.category,
-            confidence: carbonData.confidence,
-            barcode: barcode,
-            date: new Date()
+      // --- ATOMIC DATABASE UPDATE ---
+      // We perform the atomic increment to update points and scans first.
+      // We also push a new reward transaction record so it can be referenced later.
+      const initialUpdate = await User.findOneAndUpdate(
+        { email: userEmail },
+        {
+          $inc: {
+            monthlyCarbon: carbonEstimate,
+            totalScanned: 1,
+            rewardPoints: pointsEarned,
+            totalPointsEarned: pointsEarned,
+            confirmedPoints: isConfirmed ? pointsEarned : 0,
+            unconfirmedPoints: isConfirmed ? 0 : pointsEarned,
+          },
+          $push: {
+            scans: {
+              productName: product.product_name,
+              carbonEstimate: carbonEstimate,
+              category: carbonData.category,
+              confidence: carbonData.confidence,
+              barcode: barcode,
+              date: new Date()
+            },
+            rewardTransactions: {
+              _id: new mongoose.Types.ObjectId(),
+              type: 'earned',
+              points: pointsEarned,
+              pointsType: isConfirmed ? 'confirmed' : 'unconfirmed',
+              reason: 'scan',
+              description: `Scanned ${product.product_name}`,
+              barcode: barcode,
+              date: new Date()
+            }
           }
         },
-        $set: {
-          updatedAt: new Date()
+        { 
+          new: true, // IMPORTANT: Returns the ground-truth updated document from the DB
+          runValidators: true 
         }
+      )
+
+      if (!initialUpdate) {
+        return NextResponse.json({ error: "Failed to update user stats" }, { status: 500 })
       }
 
-      await User.updateOne({ email: userEmail }, updateFields)
-
-      // ✅ Refetch updated user
-      const updatedUser = await User.findOne({ email: userEmail })
-
-      if (!updatedUser) {
-        return NextResponse.json({ error: "Failed to re-fetch user" }, { status: 500 })
-      }
-
+      // --- POST-UPDATE DERIVED CALCULATIONS ---
+      // Compute level, achievements, and bonuses based on the actual post-increment state.
       const oldLevel = user.level || 1
-      const levelData = calculateLevel ? calculateLevel(updatedUser) : { level: oldLevel }
-      const earnedAchievements = checkAchievements ? checkAchievements(updatedUser) : []
-      const monthlyBonus = calculateMonthlyBonus ? calculateMonthlyBonus(updatedUser) : 0
+      const levelData = calculateLevel ? calculateLevel(initialUpdate.totalPointsEarned || 0) : { level: oldLevel }
+      const earnedAchievements = checkAchievements ? checkAchievements(initialUpdate) : []
+      const monthlyBonus = calculateMonthlyBonus ? calculateMonthlyBonus(initialUpdate) : 0
+
+      // Persist any changed level/achievements with a subsequent update.
+      let updatedUser = initialUpdate;
+      if (levelData.level > oldLevel || earnedAchievements.length > 0) {
+        updatedUser = await User.findOneAndUpdate(
+          { email: userEmail },
+          {
+            $set: {
+              level: levelData.level,
+              updatedAt: new Date()
+            },
+            $push: {
+              achievements: { $each: earnedAchievements }
+            }
+          },
+          { new: true }
+        ) || initialUpdate;
+      }
+
+      // We use the ground-truth data from 'updatedUser' for the final response.
+      // This ensures the UI is always in sync with the actual database state.
       const pointsSummary = getUserPointsSummary(updatedUser)
-
-      // ✅ Sync reward fields
-      updatedUser.level = levelData.level
-      updatedUser.achievements = earnedAchievements
-      updatedUser.confirmedPoints = updatedUser.points?.confirmed || 0
-      updatedUser.unconfirmedPoints = updatedUser.points?.unconfirmed || 0
-      updatedUser.rewardPoints = updatedUser.confirmedPoints + updatedUser.unconfirmedPoints
-      updatedUser.totalPointsEarned = updatedUser.rewardPoints
-
-      await updatedUser.save()
-
-      console.log("✅ Final Points Synced:", {
-        confirmedPoints: updatedUser.confirmedPoints,
-        unconfirmedPoints: updatedUser.unconfirmedPoints,
-        rewardPoints: updatedUser.rewardPoints,
-        totalPointsEarned: updatedUser.totalPointsEarned
-      })
 
       return NextResponse.json({
         productName: product.product_name,
@@ -148,7 +167,7 @@ export async function POST(req: Request) {
           reasons: pointsData.reasons,
           pointsSummary,
           level: updatedUser.level,
-          leveledUp: levelData.level > oldLevel,
+          leveledUp: updatedUser.level > oldLevel,
           newAchievements: earnedAchievements,
           streakCount: updatedUser.streakCount,
           monthlyBonus,
