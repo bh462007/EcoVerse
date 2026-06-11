@@ -6,7 +6,6 @@ def calculate_carbon_footprint(electricity_kwh, vehicle_km):
     - Electricity: ~0.85 kg CO2 per kWh
     - Average Car: ~0.14 kg CO2 per km
     """
-    # Fix: Reject negative inputs as requested by CodeRabbit
     if electricity_kwh < 0 or vehicle_km < 0:
         raise ValueError("Electricity usage and vehicle distance must be non-negative.")
 
@@ -23,10 +22,22 @@ def main():
     print("🌱 EcoVerse Offline Carbon Calculator 🌱")
     print("-" * 40)
     
+    # 1. Safely get electricity input
     try:
         elec = float(input("Enter monthly electricity usage (in kWh): "))
-        trans = float(input("Enter monthly vehicle distance traveled (in km): "))
+    except ValueError:
+        print("❌ Error: Please enter valid numeric values for electricity usage.")
+        sys.exit(1)
         
+    # 2. Safely get transport input
+    try:
+        trans = float(input("Enter monthly vehicle distance traveled (in km): "))
+    except ValueError:
+        print("❌ Error: Please enter valid numeric values for vehicle distance.")
+        sys.exit(1)
+        
+    # 3. Calculate and display (catches the negative number error)
+    try:
         total, e_emissions, t_emissions = calculate_carbon_footprint(elec, trans)
         
         print("\n📊 --- Carbon Footprint Report --- 📊")
@@ -36,11 +47,7 @@ def main():
         print("-" * 40)
         
     except ValueError as e:
-        # Fix: Catch specific error and exit with a non-zero code
-        if str(e).startswith("could not convert string to float"):
-            print("❌ Error: Please enter valid numeric values.")
-        else:
-            print(f"❌ Error: {e}")
+        print(f"❌ Error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
