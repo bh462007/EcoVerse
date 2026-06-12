@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle, Clock, Gift, Star, Trophy } from "lucide-react"
@@ -25,6 +25,13 @@ interface RewardsNotificationProps {
 export default function RewardsNotification({ notification, onDismiss }: RewardsNotificationProps) {
   const [visible, setVisible] = useState(false)
 
+  const handleDismiss = useCallback(() => {
+    setVisible(false)
+    setTimeout(() => {
+      onDismiss()
+    }, 300) // Wait for fade out animation
+  }, [onDismiss])
+
   useEffect(() => {
     if (notification) {
       setVisible(true)
@@ -35,14 +42,7 @@ export default function RewardsNotification({ notification, onDismiss }: Rewards
       
       return () => clearTimeout(timer)
     }
-  }, [notification])
-
-  const handleDismiss = () => {
-    setVisible(false)
-    setTimeout(() => {
-      onDismiss()
-    }, 300) // Wait for fade out animation
-  }
+  }, [notification, handleDismiss])
 
   if (!notification || !visible) return null
 
