@@ -78,8 +78,13 @@ export async function POST(req: Request) {
   try {
     const { productName, carbonEstimate } = await req.json()
 
-    if (!productName || carbonEstimate === undefined) {
+    if (!productName || carbonEstimate === undefined || carbonEstimate === null) {
       return NextResponse.json({ error: "Missing productName or carbonEstimate" }, { status: 400 })
+    }
+
+    const carbonValue = Number(carbonEstimate)
+    if (!Number.isFinite(carbonValue) || carbonValue < 0) {
+      return NextResponse.json({ error: "carbonEstimate must be a non-negative number" }, { status: 400 })
     }
 
     await dbConnect()
@@ -90,36 +95,76 @@ export async function POST(req: Request) {
     }
 
     const isFirstScan = (user.totalScanned || 0) === 0
-    const streakCount = user.streakCount || 0
     const totalScans = user.totalScanned || 0
+
+    // Streak logic
+    const now = new Date()
+    let newStreakCount = user.streakCount || 0
+    const lastScanDate = user.lastScanDate ? new Date(user.lastScanDate) : null
+
+    const isSameDay = lastScanDate && now.toDateString() === lastScanDate.toDateString()
+    const yesterday = new Date(now)
+    yesterday.setDate(now.getDate() - 1)
+    const isYesterday = lastScanDate && yesterday.toDateString() === lastScanDate.toDateString()
+
+    if (!lastScanDate || isYesterday) {
+      newStreakCount += 1
+    } else if (!isSameDay) {
+      newStreakCount = 1
+    }
+
+    const newBestStreak = Math.max(newStreakCount, user.bestStreakCount || 0)
 
     // Calculate points for this manual entry
     const pointsData = calculateScanPoints(
-      Number(carbonEstimate),
+      carbonValue,
       isFirstScan,
-      streakCount,
+      newStreakCount,
       totalScans
     )
 
     const pointsEarned = pointsData.points
     const isConfirmed = pointsData.isConfirmed
 
-    // Atomic update to user stats and history
-    const initialUpdate = await User.findOneAndUpdate(
+    // Pre-calculate expected state for level and achievements
+    const newTotalPoints = (user.totalPointsEarned || 0) + pointsEarned
+    const newTotalScanned = (user.totalScanned || 0) + 1
+    const levelData = calculateLevel(newTotalPoints)
+    
+    // Simulate user state for achievement check
+    const simulatedUser = {
+      ...user.toObject(),
+      totalPointsEarned: newTotalPoints,
+      totalScanned: newTotalScanned,
+      monthlyCarbon: (user.monthlyCarbon || 0) + carbonValue,
+      streakCount: newStreakCount,
+      // We might need to simulate more fields if checkAchievements uses them
+    }
+    const earnedAchievements = checkAchievements(simulatedUser)
+    const oldLevel = user.level || 1
+
+    // Single atomic update to user stats and history
+    const finalUpdate = await User.findOneAndUpdate(
       { email },
       {
         $inc: {
-          monthlyCarbon: Number(carbonEstimate),
+          monthlyCarbon: carbonValue,
           totalScanned: 1,
           rewardPoints: pointsEarned,
           totalPointsEarned: pointsEarned,
           confirmedPoints: isConfirmed ? pointsEarned : 0,
           unconfirmedPoints: isConfirmed ? 0 : pointsEarned,
         },
+        $set: {
+          streakCount: newStreakCount,
+          bestStreakCount: newBestStreak,
+          lastScanDate: now,
+          level: levelData.level
+        },
         $push: {
           scans: {
             productName,
-            carbonEstimate: Number(carbonEstimate),
+            carbonEstimate: carbonValue,
             category: "Manual Entry",
             confidence: "medium",
             barcode: "MANUAL-" + Date.now(),
@@ -133,31 +178,15 @@ export async function POST(req: Request) {
             reason: 'scan',
             description: `Manual entry: ${productName}`,
             date: new Date()
-          }
+          },
+          ...(earnedAchievements.length > 0 && { achievements: { $each: earnedAchievements } })
         }
       },
       { new: true, runValidators: true }
     )
 
-    if (!initialUpdate) {
+    if (!finalUpdate) {
       return NextResponse.json({ error: "Failed to update user score" }, { status: 500 })
-    }
-
-    // Check for level ups and achievements
-    const oldLevel = user.level || 1
-    const levelData = calculateLevel(initialUpdate.totalPointsEarned || 0)
-    const earnedAchievements = checkAchievements(initialUpdate)
-
-    let finalUpdate = initialUpdate
-    if (levelData.level > oldLevel || earnedAchievements.length > 0) {
-      finalUpdate = await User.findOneAndUpdate(
-        { email },
-        {
-          $set: { level: levelData.level },
-          $push: { achievements: { $each: earnedAchievements } }
-        },
-        { new: true }
-      ) || initialUpdate
     }
 
     return NextResponse.json({
