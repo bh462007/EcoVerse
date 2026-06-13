@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import Image from "next/image"
 import { cn } from "@/lib/utils"
 
 
@@ -29,13 +30,14 @@ const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
     return (
       <div
         ref={ref}
-        className={cn("h-10 w-10 rounded-full overflow-hidden border border-border", className)}
+        className={cn("relative h-10 w-10 rounded-full overflow-hidden border border-border", className)}
         {...props}
       >
-        <img
+        <Image
           src={src}
           alt="User avatar"
-          className="h-full w-full object-cover rounded-full"
+          fill
+          className="object-cover rounded-full"
         />
       </div>
     )
