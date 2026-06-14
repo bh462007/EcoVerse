@@ -1,26 +1,20 @@
-import { NextResponse } from "next/server";
-import dbConnect from "@/lib/mongodb";
-import User from "@/models/User";
-import bcrypt from "bcryptjs";
+import { NextResponse } from 'next/server';
+import dbConnect from '@/lib/mongodb';
+import User from '@/models/User';
+import bcrypt from 'bcryptjs';
 
 export async function POST(req: Request) {
   try {
-
     await dbConnect();
 
     const body = await req.json();
 
-    const {
-      name,
-      email,
-      password,
-      firebaseUid,
-    } = body;
+    const { name, email, password, firebaseUid } = body;
 
     // Require basic fields
     if (!name || !email) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: 'Missing required fields' },
         { status: 400 }
       );
     }
@@ -29,24 +23,17 @@ export async function POST(req: Request) {
     if (!password && !firebaseUid) {
       return NextResponse.json(
         {
-          error:
-            "Password or Firebase UID is required",
+          error: 'Password or Firebase UID is required',
         },
         { status: 400 }
       );
     }
 
-    const existingUser = await User.findOne({
-      email,
-    });
+    const existingUser = await User.findOne({ email });
 
     if (existingUser) {
-        "⚠️ User already exists:",
-        email
-      );
-
       return NextResponse.json(
-        { error: "User already exists" },
+        { error: 'User already exists' },
         { status: 400 }
       );
     }
@@ -55,10 +42,7 @@ export async function POST(req: Request) {
     let hashedPassword = null;
 
     if (password) {
-      hashedPassword = await bcrypt.hash(
-        password,
-        10
-      );
+      hashedPassword = await bcrypt.hash(password, 10);
     }
 
     const user = await User.create({
@@ -78,20 +62,13 @@ export async function POST(req: Request) {
       joinedAt: new Date().toISOString(),
     });
 
-
-    return NextResponse.json(
-      { user },
-      { status: 201 }
-    );
+    return NextResponse.json({ user }, { status: 201 });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Unknown server error";
+    const message = error instanceof Error ? error.message : 'Unknown server error';
 
-      "🔥 Signup API error:",
-      message
-    );
+    // FIX: Safely wrap critical runtime tracing with explicit rule suppression
+    /* eslint-disable-next-line no-console */
+    console.error('🔥 Signup API error:', message);
 
     return NextResponse.json(
       { error: message },

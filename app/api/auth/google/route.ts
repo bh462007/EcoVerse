@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 })
   }
 
-  let userDoc = null
+  let userDoc: any = null
   try {
     await dbConnect()
     userDoc = await User.findOneAndUpdate(
@@ -35,14 +35,16 @@ export async function POST(req: Request) {
         lean: true
       }
     )
-    
-    
   } catch (err) {
     console.error("Failed to upsert user in google route:", err)
     return NextResponse.json({ error: "Database error" }, { status: 500 })
   }
 
-  // Generate the JWT
+  if (!userDoc) {
+    return NextResponse.json({ error: "User processing failed" }, { status: 500 })
+  }
+
+  // Generate the JWT safely
   const token = await signToken({
     email: userDoc.email,
     userId: userDoc._id.toString()
@@ -58,12 +60,12 @@ export async function POST(req: Request) {
     path: '/',
   });
 
-  // Map the MongoDB document back to the required frontend shape, ensuring we use raw DB values
+  // Map the MongoDB document back to the required frontend shape using safe fallbacks
   const user = {
     _id: userDoc._id,
-    name: userDoc.name,
-    email: userDoc.email,
-    joinedAt: userDoc.createdAt ? new Date(userDoc.createdAt).toISOString().split("T")[0] : userDoc.joinedAt,
+    name: userDoc.name || "",
+    email: userDoc.email || "",
+    joinedAt: userDoc.createdAt ? new Date(userDoc.createdAt).toISOString().split("T")[0] : (userDoc.joinedAt || ""),
     monthlyCarbon: userDoc.monthlyCarbon || 0,
     totalScanned: userDoc.totalScanned || 0,
     avatarId: userDoc.avatarId || "avatar-1",
