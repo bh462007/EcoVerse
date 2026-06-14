@@ -18,7 +18,6 @@ export default [
       "unused-imports/no-unused-imports": "warn",
     },
   },
-
   {
     linterOptions: {
       reportUnusedDisableDirectives: "off"
@@ -28,5 +27,8 @@ export default [
       "@typescript-eslint/no-require-imports": "warn",
       "react/no-unescaped-entities": "warn"
     }
-  }
+  },
+  { 
+    ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts"] 
+  },
 ];

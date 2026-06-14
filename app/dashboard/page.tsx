@@ -3,7 +3,7 @@
 
 import { useAuth } from "@/components/auth-provider"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import DashboardLayout from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -48,15 +48,7 @@ export default function Dashboard() {
   const [userStats, setUserStats] = useState<UserStats | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (!user) {
-      router.push("/auth/signin")
-    } else {
-      fetchUserStats()
-    }
-  }, [user, router])
-
-  const fetchUserStats = async () => {
+  const fetchUserStats = useCallback(async () => {
     try {
       // Fetch leaderboard data to get user rank and stats
       const [leaderboardResponse, rewardsResponse] = await Promise.all([
@@ -94,7 +86,15 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user?.email, user?._id])
+
+  useEffect(() => {
+    if (!user) {
+      router.push("/auth/signin")
+    } else {
+      fetchUserStats()
+    }
+  }, [user, router, fetchUserStats])
 
   if (!user) {
     return null
