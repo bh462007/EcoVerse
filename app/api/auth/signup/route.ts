@@ -1,29 +1,20 @@
-import { NextResponse } from "next/server";
-import dbConnect from "@/lib/mongodb";
-import User from "@/models/User";
-import bcrypt from "bcryptjs";
+import { NextResponse } from 'next/server';
+import dbConnect from '@/lib/mongodb';
+import User from '@/models/User';
+import bcrypt from 'bcryptjs';
 
 export async function POST(req: Request) {
   try {
-    console.log("✅ Signup endpoint hit");
-
     await dbConnect();
-    console.log("✅ Connected to DB");
 
     const body = await req.json();
-    console.log("📦 Request body:", body);
 
-    const {
-      name,
-      email,
-      password,
-      firebaseUid,
-    } = body;
+    const { name, email, password, firebaseUid } = body;
 
     // Require basic fields
     if (!name || !email) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: 'Missing required fields' },
         { status: 400 }
       );
     }
@@ -32,25 +23,17 @@ export async function POST(req: Request) {
     if (!password && !firebaseUid) {
       return NextResponse.json(
         {
-          error:
-            "Password or Firebase UID is required",
+          error: 'Password or Firebase UID is required',
         },
         { status: 400 }
       );
     }
 
-    const existingUser = await User.findOne({
-      email,
-    });
+    const existingUser = await User.findOne({ email });
 
     if (existingUser) {
-      console.warn(
-        "⚠️ User already exists:",
-        email
-      );
-
       return NextResponse.json(
-        { error: "User already exists" },
+        { error: 'User already exists' },
         { status: 400 }
       );
     }
@@ -59,13 +42,10 @@ export async function POST(req: Request) {
     let hashedPassword = null;
 
     if (password) {
-      hashedPassword = await bcrypt.hash(
-        password,
-        10
-      );
+      hashedPassword = await bcrypt.hash(password, 10);
     }
 
-    const user = await User.create({
+    const createdUser = await User.create({
       name,
       username: name,
       full_name: name,
@@ -82,26 +62,22 @@ export async function POST(req: Request) {
       joinedAt: new Date().toISOString(),
     });
 
-    console.log("✅ User created:", user);
+    // FIX: Convert document to a plain object and strip the password property to prevent credential leaking
+    const user = createdUser.toObject
+      ? createdUser.toObject()
+      : { ...createdUser };
+    delete user.password;
 
-    return NextResponse.json(
-      { user },
-      { status: 201 }
-    );
+    return NextResponse.json({ user }, { status: 201 });
   } catch (error) {
     const message =
-      error instanceof Error
-        ? error.message
-        : "Unknown server error";
+      error instanceof Error ? error.message : 'Unknown server error';
 
-    console.error(
-      "🔥 Signup API error:",
-      message
-    );
+    // Safely wrap critical runtime tracing with explicit rule suppression
+    /* eslint-disable-next-line no-console */
+    console.error('🔥 Signup API error:', message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    // FIX: Do not expose low-level database or system diagnostics directly to downstream clients
+    return NextResponse.json({ error: 'Signup failed' }, { status: 500 });
   }
 }
