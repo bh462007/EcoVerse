@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Gift, Star, Trophy, TrendingUp, Calendar, ShoppingCart, Crown, Zap, Shield, BarChart3 } from "lucide-react"
 
 interface RewardsData {

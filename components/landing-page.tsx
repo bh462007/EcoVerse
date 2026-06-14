@@ -3,22 +3,16 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
-  Leaf,
   Scan,
   TrendingDown,
   Trophy,
-  Users,
   BarChart3,
   Zap,
-  Shield,
   Recycle,
   ArrowRight,
-  Star,
-  CheckCircle,
   Globe,
   Target,
   Sparkles,
-  Play,
 } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"

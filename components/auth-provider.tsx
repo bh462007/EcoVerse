@@ -10,8 +10,7 @@ import {
 import {
   signInWithPopup,
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  User as FirebaseUser
+  signInWithEmailAndPassword
 } from "firebase/auth"
 import { auth, googleProvider } from "@/lib/firebase"
 import { toast } from "@/components/ui/use-toast" // ✅ Import toast

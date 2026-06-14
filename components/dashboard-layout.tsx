@@ -4,7 +4,7 @@
 import { useState } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { Leaf, Home, Scan, Trophy, BarChart3, Gift, TrendingDown, LogOut } from "lucide-react"
+import { Home, Scan, Trophy, BarChart3, Gift, TrendingDown, LogOut } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/auth-provider"
