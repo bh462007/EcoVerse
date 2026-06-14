@@ -20,7 +20,8 @@ export default [
   },
   {
     linterOptions: {
-      reportUnusedDisableDirectives: 'off',
+      // Changed from 'off' to 'warn' to satisfy CodeRabbit
+      reportUnusedDisableDirectives: 'warn',
     },
     rules: {
       '@typescript-eslint/no-explicit-any': 'warn',
