@@ -45,7 +45,7 @@ export async function POST(req: Request) {
       hashedPassword = await bcrypt.hash(password, 10);
     }
 
-    const user = await User.create({
+    const createdUser = await User.create({
       name,
       username: name,
       full_name: name,
@@ -62,15 +62,22 @@ export async function POST(req: Request) {
       joinedAt: new Date().toISOString(),
     });
 
+    // FIX: Convert document to a plain object and strip the password property to prevent credential leaking
+    const user = createdUser.toObject
+      ? createdUser.toObject()
+      : { ...createdUser };
+    delete user.password;
+
     return NextResponse.json({ user }, { status: 201 });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Unknown server error';
 
-    // FIX: Safely wrap critical runtime tracing with explicit rule suppression
+    // Safely wrap critical runtime tracing with explicit rule suppression
     /* eslint-disable-next-line no-console */
     console.error('🔥 Signup API error:', message);
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    // FIX: Do not expose low-level database or system diagnostics directly to downstream clients
+    return NextResponse.json({ error: 'Signup failed' }, { status: 500 });
   }
 }
