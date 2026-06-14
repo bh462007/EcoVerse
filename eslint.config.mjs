@@ -18,4 +18,15 @@ export default [
       "unused-imports/no-unused-imports": "warn",
     },
   },
+
+  {
+    linterOptions: {
+      reportUnusedDisableDirectives: "off"
+    },
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-require-imports": "warn",
+      "react/no-unescaped-entities": "warn"
+    }
+  }
 ];
