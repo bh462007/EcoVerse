@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { MongoClient, Db } from "mongodb";
 import * as dotenv from "dotenv";
 
