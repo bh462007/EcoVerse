@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import bcrypt from 'bcryptjs';
+import { signToken } from '@/lib/auth';
 
 export async function POST(req: Request) {
   try {
@@ -67,6 +69,20 @@ export async function POST(req: Request) {
       ? createdUser.toObject()
       : { ...createdUser };
     delete user.password;
+
+    const token = await signToken({
+      email: user.email,
+      userId: user._id.toString(),
+    });
+
+    const cookieStore = await cookies();
+    cookieStore.set('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+      path: '/',
+    });
 
     return NextResponse.json({ user }, { status: 201 });
   } catch (error) {
