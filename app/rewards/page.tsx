@@ -28,6 +28,45 @@ import {
   BarChart3,
 } from 'lucide-react';
 
+import type { RewardShopItem } from '@/lib/rewards-system';
+
+interface EarnedAchievement {
+  id: string;
+  name: string;
+  description: string;
+  points: number;
+  icon: string;
+  earnedAt: string;
+}
+
+interface AvailableAchievement {
+  id: string;
+  name: string;
+  description: string;
+  points: number;
+  icon: string;
+  progress: number;
+}
+
+interface PurchasedShopItem {
+  itemId: string;
+  name: string;
+  cost: number;
+  category: 'badge' | 'feature' | 'cosmetic';
+  purchasedAt: string;
+  active: boolean;
+}
+
+interface RewardTransactionView {
+  type: 'earned' | 'redeemed';
+  points: number;
+  pointsType: 'confirmed' | 'unconfirmed';
+  reason: string;
+  description: string;
+  date: string;
+  confirmedAt?: string;
+}
+
 interface RewardsData {
   points: number;
   pointsSummary: {
@@ -40,11 +79,11 @@ interface RewardsData {
   level: number;
   nextLevelPoints: number;
   progressToNext: number;
-  transactions: unknown[];
-  achievements: unknown[];
-  availableAchievements: unknown[];
-  purchasedItems: unknown[];
-  availableShopItems: unknown[];
+  transactions: RewardTransactionView[];
+  achievements: EarnedAchievement[];
+  availableAchievements: AvailableAchievement[];
+  purchasedItems: PurchasedShopItem[];
+  availableShopItems: RewardShopItem[];
   activeBadges: string[];
   specialFeatures: {
     streakProtectors: number;
@@ -60,7 +99,7 @@ export default function RewardsPage() {
   const [rewardsData, setRewardsData] = useState<RewardsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<unknown>(null);
+  const [selectedItem, setSelectedItem] = useState<RewardShopItem | null>(null);
 
   useEffect(() => {
     if (!user) {
