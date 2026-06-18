@@ -35,7 +35,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   signup: (name: string, email: string, password: string) => Promise<boolean>;
   signInWithGoogle: () => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateUserStats: (carbonAdded: number) => void;
   updateAvatar: (avatarId: AvatarId) => void;
 }

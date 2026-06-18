@@ -49,6 +49,7 @@ Call `computeStreakUpdate()` before the atomic `$inc` update at [L92-L128](app/a
 **3. Streak Notification Component (`components/streak-notification.tsx` — NEW)**
 
 A toast/modal component that renders differently for:
+
 - Streak continued (+1 day)
 - Streak milestone (7/30/100 days) with confetti animation
 - Streak saved by protector (shield animation)
@@ -61,15 +62,17 @@ Integrates with the existing `reward-notification.tsx` pattern at [L1-L4503](com
 Add a streak counter badge in the header area near the avatar ([L73-L104](components/dashboard-layout.tsx)) showing current streak with a fire 🔥 icon and the best streak as a secondary label.
 
 ### Files Touched
-| File | Action |
-|------|--------|
-| `lib/streak-engine.ts` | **NEW** — pure streak computation logic |
-| `app/api/scan/route.ts` | MODIFY — integrate streak into scan flow |
-| `components/streak-notification.tsx` | **NEW** — UI notifications |
-| `components/dashboard-layout.tsx` | MODIFY — streak display |
-| `lib/rewards-system.ts` | MODIFY — wire streak milestones to bonus points |
+
+| File                                 | Action                                          |
+| ------------------------------------ | ----------------------------------------------- |
+| `lib/streak-engine.ts`               | **NEW** — pure streak computation logic         |
+| `app/api/scan/route.ts`              | MODIFY — integrate streak into scan flow        |
+| `components/streak-notification.tsx` | **NEW** — UI notifications                      |
+| `components/dashboard-layout.tsx`    | MODIFY — streak display                         |
+| `lib/rewards-system.ts`              | MODIFY — wire streak milestones to bonus points |
 
 ### Why This Is Non-Trivial
+
 - Requires calendar-day boundary math with timezone awareness
 - The streak protector creates a branching state machine (break vs. save vs. continue)
 - Must integrate atomically with the existing `$inc`/`$push` MongoDB update in scan API without race conditions
@@ -109,7 +112,10 @@ Add to UserSchema: `carbonHistory: [MonthlyCarbonHistorySchema]` and `lastMonthl
 
 ```typescript
 export function shouldResetMonthly(lastReset: Date | null, now: Date): boolean;
-export function archiveAndReset(user): { archivedMonth: object; bonusPoints: number };
+export function archiveAndReset(user): {
+  archivedMonth: object;
+  bonusPoints: number;
+};
 ```
 
 Detects month boundary crossings (handles multi-month gaps), snapshots current `monthlyCarbon` and `totalScanned` into the archive, calculates any earned monthly bonus via `calculateMonthlyBonus()`, then returns the reset values.
@@ -117,6 +123,7 @@ Detects month boundary crossings (handles multi-month gaps), snapshots current `
 **3. Integration into Scan API (`app/api/scan/route.ts`)**
 
 Before the atomic update at [L92](app/api/scan/route.ts), call `shouldResetMonthly()`. If a reset is needed:
+
 - Archive the previous month's data via `$push` to `carbonHistory`
 - `$set` monthlyCarbon to just the current scan's carbon (not accumulate on stale data)
 - Award any monthly bonus points
@@ -131,16 +138,18 @@ GET endpoint that returns the user's `carbonHistory` array with computed trend d
 A Recharts-based ([already a dependency](package.json#L69)) line/bar chart showing monthly carbon over time with tier threshold lines overlaid. Integrate into the Analytics page.
 
 ### Files Touched
-| File | Action |
-|------|--------|
-| `models/User.ts` | MODIFY — add history schema + reset field |
-| `lib/monthly-reset.ts` | **NEW** — reset logic + archival |
-| `app/api/scan/route.ts` | MODIFY — integrate monthly boundary check |
-| `app/api/user/carbon-history/route.ts` | **NEW** — history API |
-| `components/carbon-trend-chart.tsx` | **NEW** — trend visualization |
-| `lib/rewards-system.ts` | MODIFY — connect monthly bonus to archive flow |
+
+| File                                   | Action                                         |
+| -------------------------------------- | ---------------------------------------------- |
+| `models/User.ts`                       | MODIFY — add history schema + reset field      |
+| `lib/monthly-reset.ts`                 | **NEW** — reset logic + archival               |
+| `app/api/scan/route.ts`                | MODIFY — integrate monthly boundary check      |
+| `app/api/user/carbon-history/route.ts` | **NEW** — history API                          |
+| `components/carbon-trend-chart.tsx`    | **NEW** — trend visualization                  |
+| `lib/rewards-system.ts`                | MODIFY — connect monthly bonus to archive flow |
 
 ### Why This Is Non-Trivial
+
 - Month boundary detection must handle edge cases: user inactive for 3+ months, timezone differences, first-of-month scans
 - The archive-then-reset must be atomic — a crash between archive and reset would corrupt data
 - The monthly bonus calculation interacts with the point confirmation system (confirmed vs. unconfirmed)
@@ -156,12 +165,17 @@ A Recharts-based ([already a dependency](package.json#L69)) line/bar chart showi
 ### Context
 
 Authentication state is currently scattered across multiple patterns:
+
 - **Client state**: `auth-provider.tsx` stores user in React state + `localStorage` ([L55-L59](components/auth-provider.tsx)), with no session expiry or revalidation
 - **Server state**: Google auth route sets an HttpOnly JWT cookie ([`app/api/auth/google/route.ts` L69-L76](app/api/auth/google/route.ts)), but email signin ([`app/api/auth/signin/route.ts`](app/api/auth/signin/route.ts)) and signup ([`app/api/auth/signup/route.ts`](app/api/auth/signup/route.ts)) do not issue any token
 - **Middleware**: Reads `auth_token` cookie to inject `x-user-email` header ([`middleware.ts` L7-L19](middleware.ts))
 - **Logout**: Only clears `localStorage` ([L196-L199](components/auth-provider.tsx)) — never clears the HttpOnly cookie
 
 This means the auth flow has no unified session contract, and email/password users have a broken server-side session.
+
+> **Related**: This feature depends on the JWT cookie auth infrastructure being properly established.
+> The current "JWT Cookie Auth & Session Management" PR implements signin/signup JWT issuance,
+> session validation, and logout; Issue `#3` builds a `useSession` hook abstraction on top of those endpoints.
 
 ### Proposed Implementation
 
@@ -184,6 +198,7 @@ export function useSession() {
 ```
 
 Key behaviors:
+
 - On mount, check for existing cookie by calling a new `/api/auth/me` endpoint (not just reading localStorage)
 - `refreshSession()` re-validates the JWT server-side and updates the client user object
 - `logout()` calls `/api/auth/logout` to clear the HttpOnly cookie AND clears localStorage
@@ -210,16 +225,18 @@ export function AuthProvider({ children }) {
 All 6 existing consumers (`dashboard-layout.tsx`, scan page, rewards page, etc.) continue working via `useAuth()` with zero changes.
 
 ### Files Touched
-| File | Action |
-|------|--------|
-| `hooks/use-session.ts` | **NEW** — reusable session hook |
-| `app/api/auth/me/route.ts` | **NEW** — session validation endpoint |
-| `app/api/auth/logout/route.ts` | **NEW** — cookie clearing endpoint |
-| `app/api/auth/signin/route.ts` | MODIFY — add JWT issuance |
-| `app/api/auth/signup/route.ts` | MODIFY — add JWT issuance |
-| `components/auth-provider.tsx` | MODIFY — delegate to `useSession` |
+
+| File                           | Action                                |
+| ------------------------------ | ------------------------------------- |
+| `hooks/use-session.ts`         | **NEW** — reusable session hook       |
+| `app/api/auth/me/route.ts`     | **NEW** — session validation endpoint |
+| `app/api/auth/logout/route.ts` | **NEW** — cookie clearing endpoint    |
+| `app/api/auth/signin/route.ts` | MODIFY — add JWT issuance             |
+| `app/api/auth/signup/route.ts` | MODIFY — add JWT issuance             |
+| `components/auth-provider.tsx` | MODIFY — delegate to `useSession`     |
 
 ### Why This Is Non-Trivial
+
 - Must unify 3 different auth flows (Google, email signin, email signup) into one session contract
 - The HttpOnly cookie cannot be read by client JS — requires a server round-trip for validation
 - Token refresh and expiry handling requires careful race condition management (multiple tabs, concurrent requests)
@@ -241,6 +258,7 @@ The rewards system ([`lib/rewards-system.ts`](lib/rewards-system.ts) — 529 lin
 **`lib/__tests__/rewards-system.test.ts` (NEW)** — Comprehensive test file organized by function:
 
 **1. `calculateScanPoints()` — 12+ test cases**
+
 - First scan returns `FIRST_SCAN` (50) points + confirmed status
 - Non-first scan returns `DAILY_SCAN` (10) points
 - Carbon < 0.5kg adds `VERY_LOW_CARBON_SCAN` (25) bonus
@@ -255,6 +273,7 @@ The rewards system ([`lib/rewards-system.ts`](lib/rewards-system.ts) — 529 lin
 - Edge case: all zero inputs
 
 **2. `calculateLevel()` — 8+ test cases**
+
 - 0 points → level 1, progress 0%
 - 100 points → level 2, verify `nextLevelPoints`
 - Points exactly on threshold boundary (e.g., 1000 → level 5)
@@ -265,6 +284,7 @@ The rewards system ([`lib/rewards-system.ts`](lib/rewards-system.ts) — 529 lin
 - Large value beyond max → still level 15
 
 **3. `checkAchievements()` — 10+ test cases**
+
 - User with 0 scans → no achievements
 - User with 1 scan → earns `first_scan` only
 - User with 50 scans → earns `first_scan`, `ten_scans`, `fifty_scans`
@@ -277,6 +297,7 @@ The rewards system ([`lib/rewards-system.ts`](lib/rewards-system.ts) — 529 lin
 - Combined scenario: power user who qualifies for 8+ achievements simultaneously
 
 **4. `confirmPendingPoints()` — 6+ test cases**
+
 - No transactions → 0 confirmed
 - All transactions already confirmed → 0 newly confirmed
 - Transaction older than 7 days → gets confirmed
@@ -286,28 +307,33 @@ The rewards system ([`lib/rewards-system.ts`](lib/rewards-system.ts) — 529 lin
 - Verify `confirmedAt` is set on newly confirmed transactions
 
 **5. `calculateMonthlyBonus()` — 5+ test cases**
+
 - Carbon < 20 with 10+ scans → ECO_CHAMPION (1000 points)
-- Carbon < 30 with 5+ scans → MONTHLY_GOAL (500 points)  
+- Carbon < 30 with 5+ scans → MONTHLY_GOAL (500 points)
 - Carbon < 20 but only 3 scans → null (insufficient scans)
 - Carbon = 35 → null
 - Boundary: carbon exactly 20 → falls to monthly goal tier, not eco champion
 
 **6. `getSustainabilityTier()` — 6+ test cases**
+
 - Test each tier boundary: Platinum, Gold, Silver, Bronze, Beginner
 - Verify scan count minimums are enforced (e.g., < 10kg but only 5 scans → not Platinum)
 
 **7. `getUserPointsSummary()` — 4+ test cases**
+
 - Verify total = confirmed + unconfirmed
 - `pendingConfirmation` counts only transactions within 24 hours of confirmation
 - Empty transaction history
 - User with only redeemed transactions
 
 ### Files Touched
-| File | Action |
-|------|--------|
+
+| File                                   | Action                   |
+| -------------------------------------- | ------------------------ |
 | `lib/__tests__/rewards-system.test.ts` | **NEW** — 50+ test cases |
 
 ### Why This Is Non-Trivial
+
 - The rewards system has complex interdependencies (points feed into levels, levels unlock achievements, achievements grant more points)
 - Time-based confirmation logic requires mocking `Date.now()` with precision
 - Achievement conditions access deeply nested user properties (`user.scans[].carbonEstimate`)
@@ -346,6 +372,7 @@ export async function getCarbonEstimate(
 ```
 
 Implementation:
+
 - First, attempt Climatiq API call with product name + category mapping
 - **Timeout**: 3-second hard timeout — scan UX cannot block on a slow third-party
 - **Circuit breaker**: After 3 consecutive failures, skip API calls for 5 minutes and go straight to fallback
@@ -387,16 +414,18 @@ Add `CLIMATIQ_API_KEY` to `.env.example` with documentation. The feature must wo
 A small badge/pill shown on scan results: "🌐 API Verified" (green) vs "📊 Estimated" (yellow) based on `carbonSource`, so users understand the data quality.
 
 ### Files Touched
-| File | Action |
-|------|--------|
-| `lib/carbon-api.ts` | **NEW** — Climatiq integration with fallback |
-| `lib/circuit-breaker.ts` | **NEW** — reusable circuit breaker pattern |
-| `app/api/scan/route.ts` | MODIFY — swap carbon calculation call |
-| `components/scan-result-badge.tsx` | **NEW** — source indicator UI |
-| `.env.example` | MODIFY — add `CLIMATIQ_API_KEY` |
-| `lib/carbon-calculator.ts` | UNCHANGED — preserved as fallback |
+
+| File                               | Action                                       |
+| ---------------------------------- | -------------------------------------------- |
+| `lib/carbon-api.ts`                | **NEW** — Climatiq integration with fallback |
+| `lib/circuit-breaker.ts`           | **NEW** — reusable circuit breaker pattern   |
+| `app/api/scan/route.ts`            | MODIFY — swap carbon calculation call        |
+| `components/scan-result-badge.tsx` | **NEW** — source indicator UI                |
+| `.env.example`                     | MODIFY — add `CLIMATIQ_API_KEY`              |
+| `lib/carbon-calculator.ts`         | UNCHANGED — preserved as fallback            |
 
 ### Why This Is Non-Trivial
+
 - The circuit breaker pattern requires careful state machine logic (closed → open → half-open transitions)
 - The 3-second timeout must not break the scan API's response contract — partial failures must be invisible to the user
 - Caching by barcode interacts with the OpenFoodFacts data already fetched in the scan route — must avoid redundant network calls
@@ -407,10 +436,10 @@ A small badge/pill shown on scan results: "🌐 API Verified" (green) vs "📊 E
 
 ## Summary
 
-| Issue | Category | Core Modules Affected | Complexity |
-|-------|----------|----------------------|------------|
-| #1 — Scan Streak System | New feature (multiple interacting parts) | scan API, rewards, User model, dashboard UI | High — 5 subsystems |
-| #2 — Monthly Carbon Cycle | New feature (multiple interacting parts) | scan API, User model, rewards, analytics | High — atomic reset + archive |
-| #3 — Unified Session Hook | Refactor (extracting reusable hook) | auth-provider, 3 auth routes, middleware | High — 3 auth flows unified |
-| #4 — Rewards Test Suite | Comprehensive test suite | rewards-system.ts (529 lines, 8 functions) | High — 50+ test cases |
-| #5 — Climatiq Carbon API | Third-party integration with fallbacks | scan API, carbon-calculator, new modules | High — circuit breaker + cache |
+| Issue                     | Category                                 | Core Modules Affected                       | Complexity                     |
+| ------------------------- | ---------------------------------------- | ------------------------------------------- | ------------------------------ |
+| #1 — Scan Streak System   | New feature (multiple interacting parts) | scan API, rewards, User model, dashboard UI | High — 5 subsystems            |
+| #2 — Monthly Carbon Cycle | New feature (multiple interacting parts) | scan API, User model, rewards, analytics    | High — atomic reset + archive  |
+| #3 — Unified Session Hook | Refactor (extracting reusable hook)      | auth-provider, 3 auth routes, middleware    | High — 3 auth flows unified    |
+| #4 — Rewards Test Suite   | Comprehensive test suite                 | rewards-system.ts (529 lines, 8 functions)  | High — 50+ test cases          |
+| #5 — Climatiq Carbon API  | Third-party integration with fallbacks   | scan API, carbon-calculator, new modules    | High — circuit breaker + cache |

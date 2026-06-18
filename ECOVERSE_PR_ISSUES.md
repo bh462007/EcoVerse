@@ -4,6 +4,8 @@
 > **Date**: 2026-06-18
 > **Author**: @jayshreerathoreai32-hue
 
+> **Note**: This document describes a backlog of issues. **PR `#3` (JWT auth) is currently being addressed** by the JWT Cookie Auth & Session Management PR. Issues `#1`, `#2`, `#4`, `#5` are reserved for future implementation.
+
 The following 5 issues each require changes across multiple interacting modules, touch core business logic, and demand careful architectural reasoning. Each is formatted as a Pull Request proposal.
 
 ---
@@ -11,6 +13,7 @@ The following 5 issues each require changes across multiple interacting modules,
 ## PR #1 — Fix: Scan Streak Counter Never Updates (Broken Core Game Loop)
 
 ### 🏷️ Labels
+
 `bug` `core-logic` `rewards-system` `priority: high`
 
 ### Problem
@@ -18,13 +21,15 @@ The following 5 issues each require changes across multiple interacting modules,
 The scan streak (`streakCount`) is a central metric used by the **rewards system** (streak bonuses, 12+ achievements, sustainability tiers) and the **leaderboard**, yet **no code path ever increments or resets it**.
 
 In [`app/api/scan/route.ts`](file:///d:/EcoVerse/EcoVerse/app/api/scan/route.ts):
+
 - `streakCount` is **read** at [L74](file:///d:/EcoVerse/EcoVerse/app/api/scan/route.ts#L74) and passed to `calculateScanPoints()`
 - The `$inc` update block ([L95-L102](file:///d:/EcoVerse/EcoVerse/app/api/scan/route.ts#L95-L102)) increments `totalScanned`, `monthlyCarbon`, and all point fields — but **never touches** `streakCount`, `lastScanDate`, or `bestStreakCount`
 
 This means:
+
 - `streakCount` is permanently `0` for all users
 - `calculateScanPoints()` always produces a streak bonus of `0`
-- Achievements like *"Week Warrior"* (7-day streak), *"Consistency King"* (30-day), and *"Streak Master"* (100-day) are **permanently unattainable**
+- Achievements like _"Week Warrior"_ (7-day streak), _"Consistency King"_ (30-day), and _"Streak Master"_ (100-day) are **permanently unattainable**
 - The `POINT_REWARDS.WEEKLY_GOAL` milestone at streak === 7 never fires
 
 ### Root Cause
@@ -46,16 +51,22 @@ let newStreakCount = user.streakCount || 0;
 let streakBroken = false;
 
 if (lastScan) {
-  const lastScanDay = new Date(lastScan.getFullYear(), lastScan.getMonth(), lastScan.getDate());
+  const lastScanDay = new Date(
+    lastScan.getFullYear(),
+    lastScan.getMonth(),
+    lastScan.getDate()
+  );
   const todayDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diffDays = Math.floor((todayDay.getTime() - lastScanDay.getTime()) / (86400000));
+  const diffDays = Math.floor(
+    (todayDay.getTime() - lastScanDay.getTime()) / 86400000
+  );
 
   if (diffDays === 0) {
     // Same day — no streak change
   } else if (diffDays === 1) {
     newStreakCount += 1; // Consecutive day
   } else {
-    newStreakCount = 1;  // Streak broken, restart
+    newStreakCount = 1; // Streak broken, restart
     streakBroken = true;
   }
 } else {
@@ -80,13 +91,15 @@ $set: {
 Update `calculateScanPoints` to use the **newly computed** streak count rather than the stale DB value.
 
 ### Affected Files
-| File | Change Type |
-|------|------------|
-| `app/api/scan/route.ts` | Major — add streak logic |
-| `lib/rewards-system.ts` | Minor — parameter documentation |
-| `models/User.ts` | Verify schema fields exist (they do) |
+
+| File                    | Change Type                          |
+| ----------------------- | ------------------------------------ |
+| `app/api/scan/route.ts` | Major — add streak logic             |
+| `lib/rewards-system.ts` | Minor — parameter documentation      |
+| `models/User.ts`        | Verify schema fields exist (they do) |
 
 ### Acceptance Criteria
+
 - [ ] First scan sets `streakCount = 1` and `lastScanDate`
 - [ ] Scanning on a consecutive calendar day increments `streakCount`
 - [ ] Scanning twice in the same day does **not** double-increment
@@ -100,6 +113,7 @@ Update `calculateScanPoints` to use the **newly computed** streak count rather t
 ## PR #2 — Refactor: Replace Unsafe `unknown` Typing in Rewards System with Proper Interfaces
 
 ### 🏷️ Labels
+
 `refactor` `type-safety` `tech-debt` `priority: medium`
 
 ### Problem
@@ -131,7 +145,13 @@ export interface RewardsUserProfile {
   unconfirmedPoints: number;
   totalPointsEarned: number;
   rewardTransactions: RewardTransaction[];
-  achievements: { id: string; name: string; description: string; earnedAt: Date; points: number }[];
+  achievements: {
+    id: string;
+    name: string;
+    description: string;
+    earnedAt: Date;
+    points: number;
+  }[];
   scans: { carbonEstimate: number; date: Date }[];
 }
 ```
@@ -152,14 +172,16 @@ export interface RewardsUserProfile {
 - Same pattern — map Mongoose doc before passing to rewards functions
 
 ### Affected Files
-| File | Change Type |
-|------|------------|
-| `lib/types/user.ts` | **NEW** — shared type definitions |
-| `lib/rewards-system.ts` | Major — replace all `unknown` with proper types |
-| `app/api/rewards/route.ts` | Medium — remove `as any`, add mapper |
-| `app/api/scan/route.ts` | Medium — add mapper |
+
+| File                       | Change Type                                     |
+| -------------------------- | ----------------------------------------------- |
+| `lib/types/user.ts`        | **NEW** — shared type definitions               |
+| `lib/rewards-system.ts`    | Major — replace all `unknown` with proper types |
+| `app/api/rewards/route.ts` | Medium — remove `as any`, add mapper            |
+| `app/api/scan/route.ts`    | Medium — add mapper                             |
 
 ### Acceptance Criteria
+
 - [ ] Zero `unknown` or `any` types in the rewards computation path
 - [ ] `tsc --noEmit` passes without `@ts-ignore` or `@ts-expect-error` in rewards files
 - [ ] Achievement conditions have compile-time property checking
@@ -171,6 +193,7 @@ export interface RewardsUserProfile {
 ## PR #3 — Fix: Signin Route Does Not Issue JWT — Users Cannot Access Protected APIs After Login
 
 ### 🏷️ Labels
+
 `bug` `security` `authentication` `priority: critical`
 
 ### Problem
@@ -194,6 +217,7 @@ The **signup route** ([`app/api/auth/signup/route.ts`](file:///d:/EcoVerse/EcoVe
 Since the middleware ([`middleware.ts`](file:///d:/EcoVerse/EcoVerse/middleware.ts#L7)) reads `auth_token` from cookies to set the `x-user-email` header, and all protected API routes (`/api/scan`, `/api/rewards`, `/api/user/*`) check for this header — **any user who signs up or signs in via email/password has no valid session token and cannot access ANY protected API endpoint**.
 
 The app appears to "work" only because:
+
 1. The client stores user data in `localStorage` for UI rendering
 2. But every actual API call to scan/rewards/leaderboard will return `401 Unauthorized`
 
@@ -212,7 +236,10 @@ import { signToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
 
 // After isMatch check passes:
-const token = await signToken({ email: user.email, userId: user._id.toString() });
+const token = await signToken({
+  email: user.email,
+  userId: user._id.toString(),
+});
 const cookieStore = await cookies();
 cookieStore.set('auth_token', token, {
   httpOnly: true,
@@ -232,14 +259,16 @@ Same pattern — issue JWT after successful user creation.
 Update the `logout` function to also clear the cookie by calling a logout API endpoint or setting an expired cookie.
 
 ### Affected Files
-| File | Change Type |
-|------|------------|
-| `app/api/auth/signin/route.ts` | Major — add JWT + cookie |
-| `app/api/auth/signup/route.ts` | Major — add JWT + cookie |
-| `components/auth-provider.tsx` | Minor — cookie cleanup on logout |
+
+| File                           | Change Type                             |
+| ------------------------------ | --------------------------------------- |
+| `app/api/auth/signin/route.ts` | Major — add JWT + cookie                |
+| `app/api/auth/signup/route.ts` | Major — add JWT + cookie                |
+| `components/auth-provider.tsx` | Minor — cookie cleanup on logout        |
 | `app/api/auth/logout/route.ts` | **NEW** — endpoint to clear auth cookie |
 
 ### Acceptance Criteria
+
 - [ ] After email/password login, `auth_token` cookie is set
 - [ ] After signup, `auth_token` cookie is set
 - [ ] Protected API routes (`/api/scan`, `/api/rewards`) return 200 for authenticated email users
@@ -252,6 +281,7 @@ Update the `logout` function to also clear the cookie by calling a logout API en
 ## PR #4 — Perf: Fix BarcodeScanner Memory Leak — `BrowserMultiFormatReader` Reinstantiated on Every Render
 
 ### 🏷️ Labels
+
 `performance` `memory-leak` `component` `priority: medium`
 
 ### Problem
@@ -266,6 +296,7 @@ const codeReader = new BrowserMultiFormatReader();
 This is called from `simulateScan()` at [L117](file:///d:/EcoVerse/EcoVerse/components/barcode-scanner.tsx#L117) which runs on a **3-second interval** ([L42-L43](file:///d:/EcoVerse/EcoVerse/components/barcode-scanner.tsx#L42-L43)). Each call to `decodeOnceFromVideoElement` allocates internal buffers and canvas contexts but the reader instance from the previous render is never cleaned up — `BrowserMultiFormatReader` has no automatic disposal.
 
 Additionally:
+
 - The `useEffect` for the interval at [L41-L48](file:///d:/EcoVerse/EcoVerse/components/barcode-scanner.tsx#L41-L48) depends on `[stream]` but captures a stale `simulateScan` closure — this means the interval may operate on a stale `videoRef`
 - `startCamera()` is called inside a `useEffect` but is not memoized, causing potential re-creation on every dependency change
 - The camera stream is stopped in the cleanup function but `codeReader` resources are never released
@@ -275,6 +306,7 @@ Additionally:
 #### [MODIFY] [barcode-scanner.tsx](file:///d:/EcoVerse/EcoVerse/components/barcode-scanner.tsx)
 
 **1. Move reader to a ref:**
+
 ```typescript
 const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
 
@@ -289,17 +321,24 @@ useEffect(() => {
 ```
 
 **2. Memoize `simulateScan` with `useCallback`:**
+
 ```typescript
 const simulateScan = useCallback(async () => {
   if (videoRef.current && codeReaderRef.current) {
     try {
-      const result = await codeReaderRef.current.decodeOnceFromVideoElement(videoRef.current);
+      const result = await codeReaderRef.current.decodeOnceFromVideoElement(
+        videoRef.current
+      );
       if (result?.getText()) {
         onScan(result.getText());
       }
     } catch (error) {
       if ((error as any)?.name !== 'NotFoundException') {
-        toast({ title: 'Scanning failed', description: (error as Error).message, variant: 'destructive' });
+        toast({
+          title: 'Scanning failed',
+          description: (error as Error).message,
+          variant: 'destructive',
+        });
       }
     }
   }
@@ -307,6 +346,7 @@ const simulateScan = useCallback(async () => {
 ```
 
 **3. Fix interval dependency:**
+
 ```typescript
 useEffect(() => {
   if (!stream) return;
@@ -316,11 +356,13 @@ useEffect(() => {
 ```
 
 ### Affected Files
-| File | Change Type |
-|------|------------|
+
+| File                             | Change Type                                |
+| -------------------------------- | ------------------------------------------ |
 | `components/barcode-scanner.tsx` | Major — refactor to use refs and callbacks |
 
 ### Acceptance Criteria
+
 - [ ] Only one `BrowserMultiFormatReader` instance exists per component lifecycle
 - [ ] Memory profiling shows no linear growth during extended scan sessions
 - [ ] Camera stream cleanup still works correctly on unmount
@@ -332,22 +374,28 @@ useEffect(() => {
 ## PR #5 — Fix: `monthlyCarbon` Never Resets — Sustainability Tiers, Achievements, and Bonuses Become Permanently Stale
 
 ### 🏷️ Labels
+
 `bug` `core-logic` `data-integrity` `priority: high`
 
 ### Problem
 
 The `monthlyCarbon` field on the User model is the **primary metric** for:
+
 - **Sustainability tiers**: Platinum (< 10kg), Gold (< 20kg), Silver (< 30kg), Bronze (< 40kg) — [rewards-system.ts L411-L448](file:///d:/EcoVerse/EcoVerse/lib/rewards-system.ts#L411-L448)
-- **Achievements**: *"Eco Warrior"* (< 20kg), *"Carbon Conscious"* (< 30kg), *"Zero Waste Hero"* (< 10kg) — [rewards-system.ts L202-L224](file:///d:/EcoVerse/EcoVerse/lib/rewards-system.ts#L202-L224)
+- **Achievements**: _"Eco Warrior"_ (< 20kg), _"Carbon Conscious"_ (< 30kg), _"Zero Waste Hero"_ (< 10kg) — [rewards-system.ts L202-L224](file:///d:/EcoVerse/EcoVerse/lib/rewards-system.ts#L202-L224)
 - **Monthly bonuses**: `calculateMonthlyBonus()` awards 500-1000 points based on monthly carbon — [rewards-system.ts L393-L408](file:///d:/EcoVerse/EcoVerse/lib/rewards-system.ts#L393-L408)
 - **Virtual sustainability level**: [User.ts L94-L98](file:///d:/EcoVerse/EcoVerse/models/User.ts#L94-L98)
 
 However, `monthlyCarbon` is only ever **incremented** (in the scan API at [L96](file:///d:/EcoVerse/EcoVerse/app/api/scan/route.ts#L96)):
+
 ```typescript
-$inc: { monthlyCarbon: carbonEstimate }
+$inc: {
+  monthlyCarbon: carbonEstimate;
+}
 ```
 
 **There is no mechanism to reset it at the start of each calendar month.** This means:
+
 - After a few months of usage, `monthlyCarbon` grows monotonically to hundreds or thousands of kg
 - Every user permanently falls to "Beginner" tier after enough scans
 - Carbon-based achievements become **impossible** for active users
@@ -405,15 +453,17 @@ lastMonthlyCarbonReset: { type: Date, default: null },
 Optional: A cron-triggered endpoint (for Vercel Cron or similar) that batch-resets all users' `monthlyCarbon` at the start of each month, archiving the previous month's data.
 
 ### Affected Files
-| File | Change Type |
-|------|------------|
-| `lib/monthly-reset.ts` | **NEW** — month boundary detection utility |
-| `app/api/scan/route.ts` | Major — integrate monthly reset check |
-| `models/User.ts` | Minor — add reset tracking field |
-| `app/api/cron/monthly-reset/route.ts` | **NEW** — optional batch cron handler |
-| `lib/rewards-system.ts` | Minor — update `calculateMonthlyBonus` to use reset-aware data |
+
+| File                                  | Change Type                                                    |
+| ------------------------------------- | -------------------------------------------------------------- |
+| `lib/monthly-reset.ts`                | **NEW** — month boundary detection utility                     |
+| `app/api/scan/route.ts`               | Major — integrate monthly reset check                          |
+| `models/User.ts`                      | Minor — add reset tracking field                               |
+| `app/api/cron/monthly-reset/route.ts` | **NEW** — optional batch cron handler                          |
+| `lib/rewards-system.ts`               | Minor — update `calculateMonthlyBonus` to use reset-aware data |
 
 ### Acceptance Criteria
+
 - [ ] `monthlyCarbon` resets to 0 when a scan occurs in a new calendar month
 - [ ] Previous month's carbon data is preserved (either archived or logged)
 - [ ] Monthly bonus is calculated and awarded for the completed month before reset
@@ -427,13 +477,13 @@ Optional: A cron-triggered endpoint (for Vercel Cron or similar) that batch-rese
 
 ## Summary Table
 
-| PR | Title | Severity | Core Files Touched | Category |
-|----|-------|----------|--------------------|----------|
-| #1 | Scan streak never updates | 🔴 High | `scan/route.ts`, `rewards-system.ts` | Bug — broken game loop |
-| #2 | Unsafe `unknown` types in rewards | 🟡 Medium | `rewards-system.ts`, `rewards/route.ts`, `scan/route.ts` | Refactor — type safety |
-| #3 | Signin route missing JWT | 🔴 Critical | `signin/route.ts`, `signup/route.ts`, `auth-provider.tsx` | Bug — broken auth flow |
-| #4 | BarcodeScanner memory leak | 🟡 Medium | `barcode-scanner.tsx` | Performance — memory |
-| #5 | monthlyCarbon never resets | 🔴 High | `scan/route.ts`, `User.ts`, `rewards-system.ts` | Bug — data integrity |
+| PR  | Title                             | Severity    | Core Files Touched                                        | Category               |
+| --- | --------------------------------- | ----------- | --------------------------------------------------------- | ---------------------- |
+| #1  | Scan streak never updates         | 🔴 High     | `scan/route.ts`, `rewards-system.ts`                      | Bug — broken game loop |
+| #2  | Unsafe `unknown` types in rewards | 🟡 Medium   | `rewards-system.ts`, `rewards/route.ts`, `scan/route.ts`  | Refactor — type safety |
+| #3  | Signin route missing JWT          | 🔴 Critical | `signin/route.ts`, `signup/route.ts`, `auth-provider.tsx` | Bug — broken auth flow |
+| #4  | BarcodeScanner memory leak        | 🟡 Medium   | `barcode-scanner.tsx`                                     | Performance — memory   |
+| #5  | monthlyCarbon never resets        | 🔴 High     | `scan/route.ts`, `User.ts`, `rewards-system.ts`           | Bug — data integrity   |
 
 > [!IMPORTANT]
 > Issues #1, #3, and #5 are **blocking bugs** that affect core functionality for all users. They should be prioritized in that order: #3 (auth broken) → #5 (data corruption) → #1 (feature broken).
