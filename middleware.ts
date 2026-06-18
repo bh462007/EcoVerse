@@ -10,7 +10,9 @@ export async function middleware(request: NextRequest) {
   // Get the token from cookies
   const token = request.cookies.get('auth_token')?.value;
 
-  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
+  const isProtectedRoute = protectedRoutes.some((route) =>
+    pathname.startsWith(route)
+  );
 
   // If missing token on protected route, redirect to signin
   if (isProtectedRoute && !token) {

@@ -241,7 +241,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateAvatar = async (avatarId: AvatarId) => {
     if (user) {
       const previousUser = { ...user };
-      
+
       setUser({
         ...user,
         avatarId,
@@ -253,7 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: user.email, avatarId }),
         });
-        
+
         if (!res.ok) throw new Error('Failed to update on server');
       } catch (err) {
         console.error('Failed to update avatar on server:', err);

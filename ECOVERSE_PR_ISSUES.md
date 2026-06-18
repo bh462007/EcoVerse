@@ -4,7 +4,7 @@
 > **Date**: 2026-06-18
 > **Author**: @jayshreerathoreai32-hue
 
-> **Note**: This document describes a backlog of issues. **PR `#3` (JWT auth) is currently being addressed** by the JWT Cookie Auth & Session Management PR. Issues `#1`, `#2`, `#4`, `#5` are reserved for future implementation.
+> **Note**: This document describes a backlog of issues. **PR `#3` (JWT auth)** is currently being addressed by the JWT Cookie Auth & Session Management PR, and **PR `#4` (Barcode Scanner Lifecycle)** improvements are already included. Remaining future work only includes unresolved items: Issues `#1`, `#2`, and `#5`.
 
 The following 5 issues each require changes across multiple interacting modules, touch core business logic, and demand careful architectural reasoning. Each is formatted as a Pull Request proposal.
 

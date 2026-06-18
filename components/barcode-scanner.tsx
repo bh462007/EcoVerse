@@ -30,23 +30,26 @@ export default function BarcodeScanner({
   onScan,
   onClose,
 }: BarcodeScannerProps) {
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [isFlashOn, setIsFlashOn] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>(
     'environment'
   );
   const videoRef = useRef<HTMLVideoElement>(null);
+  const isScanningRef = useRef(false);
   const { toast } = useToast();
 
-  // Instantiating outside hooks or using a persistent reference prevents recreation errors
-  const codeReaderRef = useRef(new BrowserMultiFormatReader());
+  const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
+  if (!codeReaderRef.current) {
+    codeReaderRef.current = new BrowserMultiFormatReader();
+  }
 
   const stopCamera = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
-  }, [stream]);
+  }, []);
 
   const startCamera = useCallback(async () => {
     try {
@@ -60,7 +63,7 @@ export default function BarcodeScanner({
 
       const mediaStream =
         await navigator.mediaDevices.getUserMedia(constraints);
-      setStream(mediaStream);
+      streamRef.current = mediaStream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
@@ -75,30 +78,37 @@ export default function BarcodeScanner({
     }
   }, [facingMode, toast]);
 
-  const handleScan = useCallback((barcode: string) => {
-    onScan(barcode);
-  }, [onScan]);
+  const handleScan = useCallback(
+    (barcode: string) => {
+      onScan(barcode);
+    },
+    [onScan]
+  );
 
   const simulateScan = useCallback(async () => {
-    if (videoRef.current) {
-      try {
-        const result = await codeReaderRef.current.decodeOnceFromVideoElement(
-          videoRef.current
-        );
-        if (result && result.getText()) {
-          const barcode = result.getText();
-          handleScan(barcode);
-        }
-      } catch (error) {
-        if (!(error instanceof Error) || error.name !== 'NotFoundException') {
-          toast({
-            title: 'Scanning failed',
-            description:
-              error instanceof Error ? error.message : 'Unknown error',
-            variant: 'destructive',
-          });
-        }
+    if (isScanningRef.current) return;
+    if (!videoRef.current || !streamRef.current || !codeReaderRef.current)
+      return;
+
+    isScanningRef.current = true;
+    try {
+      const result = await codeReaderRef.current.decodeOnceFromVideoElement(
+        videoRef.current
+      );
+      if (result && result.getText()) {
+        const barcode = result.getText();
+        handleScan(barcode);
       }
+    } catch (error) {
+      if (!(error instanceof Error) || error.name !== 'NotFoundException') {
+        toast({
+          title: 'Scanning failed',
+          description: error instanceof Error ? error.message : 'Unknown error',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      isScanningRef.current = false;
     }
   }, [handleScan, toast]);
 
@@ -115,11 +125,11 @@ export default function BarcodeScanner({
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [stream, simulateScan]);
+  }, [simulateScan]);
 
   const toggleFlash = async () => {
-    if (stream) {
-      const track = stream.getVideoTracks()[0];
+    if (streamRef.current) {
+      const track = streamRef.current.getVideoTracks()[0];
       const capabilities = track.getCapabilities() as TorchCapabilities;
 
       if (capabilities.torch) {
@@ -140,7 +150,7 @@ export default function BarcodeScanner({
   };
 
   const switchCamera = () => {
-    setFacingMode(facingMode === 'user' ? 'environment' : 'user');
+    setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
   };
 
   const enterBarcodeManually = () => {
