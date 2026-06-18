@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import dbConnect from '@/lib/mongodb';
 import mongoose from 'mongoose';
 import User, { type IUser } from '@/models/User';
-import { signToken } from '@/lib/auth';
+import { setAuthCookie } from '@/lib/auth';
 
 type LeanUser = mongoose.FlattenMaps<IUser> & { _id: mongoose.Types.ObjectId };
 
@@ -86,21 +85,9 @@ export async function POST(req: Request) {
     );
   }
 
-  // Generate the JWT safely
-  const token = await signToken({
-    email: userDoc.email,
-    userId: userDoc._id.toString(),
-  });
-
-  // Set the token securely as an HttpOnly cookie
-  const cookieStore = await cookies();
-  cookieStore.set('auth_token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60, // 7 days
-    path: '/',
-  });
+  // Set the auth_token cookie so middleware can verify the session and
+  // inject x-user-email on subsequent requests.
+  await setAuthCookie(userDoc.email, userDoc._id.toString());
 
   // Map the MongoDB document back to the required frontend shape using safe fallbacks
   const user = {
