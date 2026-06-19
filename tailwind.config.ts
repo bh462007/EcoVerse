@@ -1,3 +1,4 @@
+// ESLint fix: Converted require() to ES module imports to resolve @typescript-eslint/no-require-imports
 import tailwindcssAnimate from 'tailwindcss-animate';
 import type { Config } from 'tailwindcss';
 
