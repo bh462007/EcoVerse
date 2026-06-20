@@ -3,11 +3,11 @@ import { cookies } from 'next/headers';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import bcrypt from 'bcryptjs';
-feat/unified-session-jwt
+feat / unified - session - jwt;
 import { signToken } from '@/lib/auth';
 
 import { setAuthCookie } from '@/lib/auth';
-main
+main;
 
 export async function POST(req: Request) {
   try {
