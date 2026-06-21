@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
+  build:
     name: Build
     runs-on: ubuntu-latest
     steps:
@@ -31,9 +31,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
-      - name: Clear Next.js cache
-        run: rm -rf .next
 
       - name: Build Next.js application
         env:
