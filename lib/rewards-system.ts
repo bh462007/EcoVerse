@@ -10,12 +10,8 @@ export interface Achievement {
 }
 
 export interface RewardTransaction {
-  feat/scan-streak-system-121-clean
-  _id?: any;
-  type: 'earned' | 'redeemed' | string;
   _id?: string;
   type: 'earned' | 'redeemed';
-main
   points: number;
   pointsType: 'confirmed' | 'unconfirmed' | string;
   reason: string;
@@ -34,11 +30,9 @@ export interface RewardShopItem {
   available: boolean;
 }
 
-feat/scan-streak-system-121-clean
 // RewardUser: used by streak tests and rewards API — requires non-optional fields
 // so callers can pass a plain object without worrying about nullish checks.
 // NEW: Proper TypeScript interface to replace 'any' and 'unknown'
-main
 export interface RewardUser {
   totalScanned: number;
   streakCount: number;
@@ -48,10 +42,7 @@ export interface RewardUser {
     carbonEstimate: number;
     productName: string;
     category: string;
-    feat/scan-streak-system-121-clean
     confidence: 'high' | 'medium' | 'low' | string;
-    confidence: number;
-    main
     barcode: string;
     date: Date;
   }[];
@@ -66,6 +57,11 @@ export interface RewardUser {
   rewardTransactions?: RewardTransaction[];
   confirmedPoints?: number;
   unconfirmedPoints?: number;
+}
+
+// User Points Data interface
+export interface UserPointsData extends RewardUser {
+  // Additional fields specific to user points tracking
 }
 
 // Point confirmation system configuration
@@ -95,7 +91,6 @@ export const POINT_REWARDS = {
 
 // Level system - points needed for each level
 export const LEVEL_THRESHOLDS = [
-  feat/scan-streak-system-121-clean
   0,      // Level 1
   100,    // Level 2
   250,    // Level 3
@@ -111,9 +106,7 @@ export const LEVEL_THRESHOLDS = [
   35000,  // Level 13
   50000,  // Level 14
   75000,  // Level 15 (Max Level)
-  0, 100, 250, 500, 1000, 2000, 3500, 5500, 8000, 12000, 18000, 25000, 35000,
-50000, 75000,
-   main];
+];
 
 // Reward shop items
 export const REWARD_SHOP_ITEMS: RewardShopItem[] = [
@@ -321,11 +314,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
 ];
 
-feat/scan-streak-system-121-clean
 // Calculate points for a scan.
 // isFirstScanOfDay (default true) gates daily/streak bonuses — prevents
 // unlimited point farming when a user scans multiple products in one day.
-main
 export function calculateScanPoints(
   carbonEstimate: number,
   isFirstScan: boolean,
@@ -352,9 +343,7 @@ export function calculateScanPoints(
     reasons.push(`Daily scan: +${POINT_REWARDS.DAILY_SCAN} points`);
   }
 
-feat/scan-streak-system-121-clean
   // Carbon footprint bonuses (always awarded regardless of scan-of-day status)
-main
   if (carbonEstimate < 0.5) {
     points += POINT_REWARDS.VERY_LOW_CARBON_SCAN;
     reasons.push(
@@ -367,21 +356,15 @@ main
     );
   }
 
-feat/scan-streak-system-121-clean
   // Streak bonus — gated behind isFirstScanOfDay to prevent farming
   if (isFirstScanOfDay && streakCount > 1) {
-  if (streakCount > 1) {
-    main
     const streakBonus = Math.min(streakCount * POINT_REWARDS.STREAK_BONUS, 100);
     points += streakBonus;
     reasons.push(`${streakCount}-day streak bonus: +${streakBonus} points`);
   }
 
-feat/scan-streak-system-121-clean
   // Weekly milestone bonus — gated behind isFirstScanOfDay
   if (isFirstScanOfDay && streakCount === 7) {
-  if (streakCount === 7) {
-    main
     points += POINT_REWARDS.WEEKLY_GOAL;
     reasons.push(
       `Weekly milestone bonus: +${POINT_REWARDS.WEEKLY_GOAL} points`
@@ -391,9 +374,7 @@ feat/scan-streak-system-121-clean
   return { points, reasons, isConfirmed };
 }
 
-feat/scan-streak-system-121-clean
 // Enhanced level calculation
-    main
 export function calculateLevel(totalPoints: number): {
   level: number;
   nextLevelPoints: number;
@@ -498,11 +479,8 @@ export function getSustainabilityTier(
   };
 }
 
-feat/scan-streak-system-121-clean
 // Confirm pending points that meet the confirmation threshold
 export function confirmPendingPoints(user: UserPointsData): {
-export function confirmPendingPoints(user: RewardUser): {
-  main
   confirmedPoints: number;
   confirmedTransactions: RewardTransaction[];
 } {
