@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import bcrypt from 'bcryptjs';
+feat / unified - session - jwt;
+import { signToken } from '@/lib/auth';
+import { setAuthCookie } from '@/lib/auth';
+main;
 
 export async function POST(req: Request) {
   try {
@@ -44,6 +49,27 @@ export async function POST(req: Request) {
         user.createdAt?.toISOString().split('T')[0] ||
         new Date().toISOString().split('T')[0],
     };
+
+    feat / unified - session - jwt;
+    const token = await signToken({
+      email: user.email,
+      userId: user._id.toString(),
+    });
+
+    const cookieStore = await cookies();
+    cookieStore.set('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+      path: '/',
+    });
+
+    // Set the auth_token cookie so middleware can verify the session and
+    // inject x-user-email on subsequent requests, matching the behavior
+    // already implemented for Google Sign-In.
+    await setAuthCookie(user.email, user._id.toString());
+    main;
 
     return NextResponse.json({ user: userData }, { status: 200 });
   } catch (error) {

@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
+import { cookies } from 'next/headers';
 
 const secretKey =
   process.env.JWT_SECRET || 'fallback_secret_for_development_only';
@@ -21,4 +22,21 @@ export async function verifyToken(token: string) {
   } catch (error) {
     return null; // Invalid or expired token
   }
+}
+
+// Signs a JWT for the given identity and sets it as the HttpOnly auth_token
+// cookie. Centralizes the cookie options (httpOnly, secure, sameSite, maxAge,
+// path) so all auth entry points (Google, email/password signin and signup)
+// stay consistent.
+export async function setAuthCookie(email: string, userId: string) {
+  const token = await signToken({ email, userId });
+
+  const cookieStore = await cookies();
+  cookieStore.set('auth_token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+    path: '/',
+  });
 }

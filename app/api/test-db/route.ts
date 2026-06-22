@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 
 export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'Debug endpoint disabled in production' },
+      { status: 403 }
+    );
+  }
+
   try {
     console.warn('🔍 Testing MongoDB connection...');
 
@@ -41,8 +48,10 @@ export async function GET() {
       error instanceof Error
         ? (error as NodeJS.ErrnoException & { hostname?: string })
         : undefined;
-    const isDev = process.env.NODE_ENV !== 'production';
 
+    // Note: code/errno/syscall/hostname are safe to include unconditionally
+    // here because the whole endpoint already returns 403 in production
+    // before reaching this point (see the guard at the top of GET).
     const errorInfo: {
       status: string;
       error: string;
@@ -56,10 +65,10 @@ export async function GET() {
     } = {
       status: 'failed',
       error: message,
-      code: isDev ? nodeError?.code : undefined,
-      errno: isDev ? nodeError?.errno : undefined,
-      syscall: isDev ? nodeError?.syscall : undefined,
-      hostname: isDev ? nodeError?.hostname : undefined,
+      code: nodeError?.code,
+      errno: nodeError?.errno,
+      syscall: nodeError?.syscall,
+      hostname: nodeError?.hostname,
       timestamp: new Date().toISOString(),
     };
 

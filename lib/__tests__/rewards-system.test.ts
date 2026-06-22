@@ -9,7 +9,10 @@ import {
   getUserPointsSummary,
   POINT_REWARDS,
   POINT_CONFIRMATION,
+  feat/scan-streak-system-121-clean
   RewardUser,
+  UserPointsData,
+  main
 } from '../rewards-system';
 
 describe('Rewards System', () => {
@@ -88,11 +91,15 @@ describe('Rewards System', () => {
 
   describe('checkAchievements', () => {
     it('should award first scan achievement', () => {
+      feat/scan-streak-system-121-clean
       const user: RewardUser = {
         totalScanned: 1,
         streakCount: 1,
         level: 1,
         monthlyCarbon: 0,
+        const user: UserPointsData = {
+        totalScanned: 1,
+        main
         achievements: [],
       };
       const newAchievements = checkAchievements(user);
@@ -101,18 +108,27 @@ describe('Rewards System', () => {
     });
 
     it('should not award previously earned achievements', () => {
+      feat/scan-streak-system-121-clean
       const user: RewardUser = {
         totalScanned: 10,
         streakCount: 1,
         level: 1,
         monthlyCarbon: 0,
+        const user: UserPointsData = {
+        totalScanned: 10,
+        main
         achievements: [
           {
             id: 'first_scan',
             name: 'First Steps',
             description: '',
+        feat/scan-streak-system-121-clean
             earnedAt: new Date(),
             points: 50,
+            condition: () => true,
+            points: 50,
+            icon: '',
+              main
           },
         ],
       };
@@ -122,10 +138,14 @@ describe('Rewards System', () => {
     });
 
     it('should award complex achievements like Eco Warrior', () => {
+      feat/scan-streak-system-121-clean
       const user: RewardUser = {
         totalScanned: 15,
         streakCount: 1,
         level: 1,
+      const user: UserPointsData = {
+        totalScanned: 15,
+        main
         monthlyCarbon: 15, // Under 20kg
         achievements: [],
       };
@@ -139,8 +159,10 @@ describe('Rewards System', () => {
       const result = calculateMonthlyBonus({
         monthlyCarbon: 18,
         totalScanned: 12,
+        feat/scan-streak-system-121-clean
         streakCount: 1,
         level: 1,
+        main
       });
       expect(result?.points).toBe(POINT_REWARDS.ECO_CHAMPION_GOAL);
     });
@@ -149,8 +171,10 @@ describe('Rewards System', () => {
       const result = calculateMonthlyBonus({
         monthlyCarbon: 25,
         totalScanned: 6,
+        feat/scan-streak-system-121-clean
         streakCount: 1,
         level: 1,
+        main
       });
       expect(result?.points).toBe(POINT_REWARDS.MONTHLY_GOAL);
     });
@@ -159,16 +183,20 @@ describe('Rewards System', () => {
       const result = calculateMonthlyBonus({
         monthlyCarbon: 40,
         totalScanned: 20,
+        feat/scan-streak-system-121-clean
         streakCount: 1,
         level: 1,
+        main
       });
       expect(result).toBeNull();
 
       const resultLowScans = calculateMonthlyBonus({
         monthlyCarbon: 5,
         totalScanned: 2,
+        feat/scan-streak-system-121-clean
         streakCount: 1,
         level: 1,
+        main
       });
       expect(resultLowScans).toBeNull();
     });
@@ -205,12 +233,14 @@ describe('Rewards System', () => {
     it('should confirm points if enough time has passed', () => {
       const pastDate = new Date();
       pastDate.setDate(pastDate.getDate() - 8); // 8 days ago
-
+      feat/scan-streak-system-121-clean
       const user: RewardUser = {
         totalScanned: 1,
         streakCount: 1,
         level: 1,
         monthlyCarbon: 0,
+      const user: UserPointsData = {
+        main
         rewardTransactions: [
           {
             type: 'earned',
@@ -232,12 +262,14 @@ describe('Rewards System', () => {
     it('should not confirm points if not enough time has passed', () => {
       const recentDate = new Date();
       recentDate.setDate(recentDate.getDate() - 1); // 1 day ago
-
+      feat/scan-streak-system-121-clean
       const user: RewardUser = {
         totalScanned: 1,
         streakCount: 1,
         level: 1,
         monthlyCarbon: 0,
+      const user: UserPointsData = {
+        main
         rewardTransactions: [
           {
             type: 'earned',
@@ -267,12 +299,14 @@ describe('Rewards System', () => {
         upcomingDate.getHours() -
           (POINT_CONFIRMATION.CONFIRMATION_DELAY_HOURS - 12)
       ); // Will be confirmed in 12 hours
-
+      feat/scan-streak-system-121-clean
       const user: RewardUser = {
         totalScanned: 1,
         streakCount: 1,
         level: 1,
         monthlyCarbon: 0,
+      const user: UserPointsData = {
+        main
         confirmedPoints: 500,
         unconfirmedPoints: 200,
         rewardTransactions: [

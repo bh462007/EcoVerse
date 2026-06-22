@@ -3,7 +3,15 @@ import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import bcrypt from 'bcryptjs';
 
+// GET /api/debug-create-user - Dev-only helper to seed a known test account
 export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'Debug endpoint disabled in production' },
+      { status: 403 }
+    );
+  }
+
   await dbConnect();
 
   const email = 'test@example.com';
