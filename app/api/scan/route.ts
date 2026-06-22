@@ -12,6 +12,7 @@ import {
   confirmPendingPoints,
   getUserPointsSummary,
 } from '@/lib/rewards-system';
+import { processStreak } from '@/lib/streak-system';
 import { inferPackaging } from '@/lib/packaging-inference';
 
 type OpenFoodFactsResponse = {
@@ -32,11 +33,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { barcode } = await req.json();
+  const { barcode, timezoneOffset } = await req.json();
 
   if (!barcode) {
     return NextResponse.json({ error: 'Barcode missing' }, { status: 400 });
   }
+
+  // Default to 0 if not provided by client
+  const tzOffset = timezoneOffset || 0;
 
   try {
     const productRes = await axios.get<OpenFoodFactsResponse>(
@@ -71,20 +75,44 @@ export async function POST(req: Request) {
       }
 
       const isFirstScan = (user.totalScanned ?? 0) === 0;
-      const streakCount = user.streakCount ?? 0;
       const totalScans = user.totalScanned ?? 0;
+      
+      const currentScanDate = new Date();
+      
+      const streakResult = processStreak(
+        {
+          lastScanDate: user.lastScanDate,
+          streakCount: user.streakCount ?? 0,
+          bestStreakCount: user.bestStreakCount ?? 0,
+          streakProtectors: user.streakProtectors ?? 0
+        },
+        currentScanDate,
+        tzOffset
+      );
 
+      // Only apply streak bonus and daily scan base points if it's the first scan of the day
       const pointsData = calculateScanPoints
         ? calculateScanPoints(
             carbonEstimate,
             isFirstScan,
-            streakCount,
-            totalScans
+            streakResult.streakCount,
+            totalScans,
+            streakResult.isFirstScanOfDay
           )
         : { points: 0, reasons: [], isConfirmed: false };
 
       const isConfirmed = pointsData.isConfirmed;
       const pointsEarned = pointsData.points;
+
+      // Prepare atomic updates
+      const setUpdate: any = {
+        streakCount: streakResult.streakCount,
+        bestStreakCount: streakResult.bestStreakCount
+      };
+      
+      if (streakResult.lastScanDate) {
+        setUpdate.lastScanDate = streakResult.lastScanDate;
+      }
 
       // --- ATOMIC DATABASE UPDATE ---
       // We perform the atomic increment to update points and scans first.
@@ -92,6 +120,7 @@ export async function POST(req: Request) {
       const initialUpdate = await User.findOneAndUpdate(
         { email: userEmail },
         {
+          $set: setUpdate,
           $inc: {
             monthlyCarbon: carbonEstimate,
             totalScanned: 1,
@@ -99,6 +128,7 @@ export async function POST(req: Request) {
             totalPointsEarned: pointsEarned,
             confirmedPoints: isConfirmed ? pointsEarned : 0,
             unconfirmedPoints: isConfirmed ? 0 : pointsEarned,
+            streakProtectors: -streakResult.protectorsUsed
           },
           $push: {
             scans: {
@@ -107,7 +137,7 @@ export async function POST(req: Request) {
               category: carbonData.category,
               confidence: carbonData.confidence,
               barcode: barcode,
-              date: new Date(),
+              date: currentScanDate,
             },
             rewardTransactions: {
               _id: new mongoose.Types.ObjectId(),
@@ -117,7 +147,7 @@ export async function POST(req: Request) {
               reason: 'scan',
               description: `Scanned ${product.product_name}`,
               barcode: barcode,
-              date: new Date(),
+              date: currentScanDate,
             },
           },
         },
@@ -188,6 +218,10 @@ export async function POST(req: Request) {
           leveledUp: updatedUser.level > oldLevel,
           newAchievements: earnedAchievements,
           streakCount: updatedUser.streakCount,
+          streakProtected: streakResult.streakSaved,
+          streakProtectorsUsed: streakResult.protectorsUsed,
+          streakLost: streakResult.lostStreak,
+          milestone: streakResult.milestone,
           monthlyBonus,
           sustainabilityTier:
             updatedUser.monthlyCarbon < 10 && updatedUser.totalScanned >= 15

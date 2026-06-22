@@ -103,7 +103,7 @@ export default function ScanPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           barcode: actualBarcode,
-          userEmail: 'test@example.com', // 👈 TEMP: use the same email from debug-create-user
+          timezoneOffset: new Date().getTimezoneOffset(),
         }),
       });
 
@@ -138,7 +138,7 @@ export default function ScanPage() {
       });
 
       if (data.rewards) {
-        const { pointsEarned, pointsType, leveledUp, newAchievements } =
+        const { pointsEarned, pointsType, leveledUp, newAchievements, streakProtected, milestone } =
           data.rewards;
         if (pointsEarned > 0) {
           showNotification({
@@ -148,6 +148,24 @@ export default function ScanPage() {
             pointsType,
           });
         }
+        if (streakProtected) {
+          setTimeout(() => {
+            showNotification({
+              type: 'achievement',
+              message: `🛡️ Streak saved! You used a streak protector to keep your streak alive.`,
+              points: 0,
+            });
+          }, 1500);
+        }
+        if (milestone) {
+          setTimeout(() => {
+            showNotification({
+              type: 'achievement',
+              message: `🔥 Milestone Reached: ${milestone} Day Streak!`,
+              points: 0,
+            });
+          }, streakProtected ? 3000 : 1500);
+        }
         if (leveledUp) {
           setTimeout(() => {
             showNotification({
@@ -155,7 +173,7 @@ export default function ScanPage() {
               message: `Congratulations! You've reached level ${data.rewards.level}!`,
               level: data.rewards.level,
             });
-          }, 2000);
+          }, (streakProtected ? 3000 : 1500) + (milestone ? 1500 : 0) + 500);
         }
         if (newAchievements?.length) {
           newAchievements.forEach((achievement: unknown, index: number) => {
@@ -167,7 +185,7 @@ export default function ScanPage() {
                   points: achievement.points,
                 });
               },
-              3000 + index * 1500
+              3000 + (streakProtected ? 1500 : 0) + (milestone ? 1500 : 0) + index * 1500
             );
           });
         }

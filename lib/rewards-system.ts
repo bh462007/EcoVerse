@@ -35,13 +35,14 @@ export interface Achievement {
 }
 
 export interface RewardTransaction {
-  type: 'earned' | 'redeemed';
+  _id?: any;
+  type: 'earned' | 'redeemed' | string;
   points: number;
-  pointsType: 'confirmed' | 'unconfirmed';
+  pointsType: 'confirmed' | 'unconfirmed' | string;
   reason: string;
   description: string;
   date: Date;
-  confirmedAt?: Date;
+  confirmedAt?: Date | null;
 }
 
 export interface RewardShopItem {
@@ -52,6 +53,34 @@ export interface RewardShopItem {
   icon: string;
   category: 'badge' | 'feature' | 'cosmetic';
   available: boolean;
+}
+
+// RewardUser: used by streak tests and rewards API — requires non-optional fields
+// so callers can pass a plain object without worrying about nullish checks.
+export interface RewardUser {
+  totalScanned: number;
+  streakCount: number;
+  monthlyCarbon: number;
+  level: number;
+  scans?: {
+    carbonEstimate: number;
+    productName: string;
+    category: string;
+    confidence: 'high' | 'medium' | 'low' | string;
+    barcode: string;
+    date: Date;
+  }[];
+  totalPointsEarned?: number;
+  achievements?: {
+    id: string;
+    name: string;
+    description: string;
+    earnedAt: Date;
+    points: number;
+  }[];
+  rewardTransactions?: RewardTransaction[];
+  confirmedPoints?: number;
+  unconfirmedPoints?: number;
 }
 
 // Point confirmation system configuration
@@ -68,34 +97,34 @@ export const POINT_CONFIRMATION = {
 export const POINT_REWARDS = {
   FIRST_SCAN: 50,
   DAILY_SCAN: 10,
-  LOW_CARBON_SCAN: 15, // For products under 1kg CO2
-  VERY_LOW_CARBON_SCAN: 25, // For products under 0.5kg CO2
-  STREAK_BONUS: 5, // Per day in streak
-  WEEKLY_GOAL: 100, // For scanning 7 days in a week
-  MONTHLY_GOAL: 500, // For keeping monthly carbon under 30kg
-  ECO_CHAMPION_GOAL: 1000, // For keeping monthly carbon under 20kg
+  LOW_CARBON_SCAN: 15,
+  VERY_LOW_CARBON_SCAN: 25,
+  STREAK_BONUS: 5,
+  WEEKLY_GOAL: 100,
+  MONTHLY_GOAL: 500,
+  ECO_CHAMPION_GOAL: 1000,
   LEVEL_UP: 200,
-  SOCIAL_SHARE: 20, // Future feature
-  REFERRAL: 100, // Future feature
+  SOCIAL_SHARE: 20,
+  REFERRAL: 100,
 };
 
 // Level system - points needed for each level
 export const LEVEL_THRESHOLDS = [
-  0, // Level 1
-  100, // Level 2
-  250, // Level 3
-  500, // Level 4
-  1000, // Level 5
-  2000, // Level 6
-  3500, // Level 7
-  5500, // Level 8
-  8000, // Level 9
-  12000, // Level 10
-  18000, // Level 11
-  25000, // Level 12
-  35000, // Level 13
-  50000, // Level 14
-  75000, // Level 15 (Max Level)
+  0,      // Level 1
+  100,    // Level 2
+  250,    // Level 3
+  500,    // Level 4
+  1000,   // Level 5
+  2000,   // Level 6
+  3500,   // Level 7
+  5500,   // Level 8
+  8000,   // Level 9
+  12000,  // Level 10
+  18000,  // Level 11
+  25000,  // Level 12
+  35000,  // Level 13
+  50000,  // Level 14
+  75000,  // Level 15 (Max Level)
 ];
 
 // Reward shop items
@@ -299,21 +328,23 @@ export const ACHIEVEMENTS: Achievement[] = [
     id: 'early_adopter',
     name: 'Early Adopter',
     description: 'One of the first 100 users to join',
-    condition: (user) => {
-      // This would need to be determined based on user registration order
-      return false; // Placeholder
-    },
+    // TODO: Implement condition based on user creation timestamp or user ID range
+    // Should check: user.createdAt < LAUNCH_DATE + 30days || user.id <= 100
+    condition: () => false, // Disabled until user creation tracking is implemented
     points: 200,
     icon: '🏃',
   },
 ];
 
-// Calculate points for a scan with enhanced logic and confirmation type
+// Calculate points for a scan.
+// isFirstScanOfDay (default true) gates daily/streak bonuses — prevents
+// unlimited point farming when a user scans multiple products in one day.
 export function calculateScanPoints(
   carbonEstimate: number,
   isFirstScan: boolean,
   streakCount: number,
-  userTotalScans: number = 0
+  userTotalScans: number = 0,
+  isFirstScanOfDay: boolean = true
 ): {
   points: number;
   reasons: string[];
@@ -331,12 +362,12 @@ export function calculateScanPoints(
   if (isFirstScan) {
     points += POINT_REWARDS.FIRST_SCAN;
     reasons.push(`First scan bonus: +${POINT_REWARDS.FIRST_SCAN} points`);
-  } else {
+  } else if (isFirstScanOfDay) {
     points += POINT_REWARDS.DAILY_SCAN;
     reasons.push(`Daily scan: +${POINT_REWARDS.DAILY_SCAN} points`);
   }
 
-  // Enhanced carbon footprint bonuses
+  // Carbon footprint bonuses (always awarded regardless of scan-of-day status)
   if (carbonEstimate < 0.5) {
     points += POINT_REWARDS.VERY_LOW_CARBON_SCAN;
     reasons.push(
@@ -349,15 +380,15 @@ export function calculateScanPoints(
     );
   }
 
-  // Enhanced streak bonus with diminishing returns cap
-  if (streakCount > 1) {
-    const streakBonus = Math.min(streakCount * POINT_REWARDS.STREAK_BONUS, 100); // Cap at 100
+  // Streak bonus — gated behind isFirstScanOfDay to prevent farming
+  if (isFirstScanOfDay && streakCount > 1) {
+    const streakBonus = Math.min(streakCount * POINT_REWARDS.STREAK_BONUS, 100);
     points += streakBonus;
     reasons.push(`${streakCount}-day streak bonus: +${streakBonus} points`);
   }
 
-  // Milestone bonuses
-  if (streakCount === 7) {
+  // Weekly milestone bonus — gated behind isFirstScanOfDay
+  if (isFirstScanOfDay && streakCount === 7) {
     points += POINT_REWARDS.WEEKLY_GOAL;
     reasons.push(
       `Weekly milestone bonus: +${POINT_REWARDS.WEEKLY_GOAL} points`
@@ -367,7 +398,7 @@ export function calculateScanPoints(
   return { points, reasons, isConfirmed };
 }
 
-// Enhanced level calculation with more levels
+// Enhanced level calculation
 export function calculateLevel(totalPoints: number): {
   level: number;
   nextLevelPoints: number;
@@ -475,7 +506,7 @@ export function getSustainabilityTier(
   };
 }
 
-// Confirm pending points that meet the confirmation criteria
+// Confirm pending points that meet the confirmation threshold
 export function confirmPendingPoints(user: UserPointsData): {
   confirmedPoints: number;
   confirmedTransactions: IRewardTransaction[];
@@ -494,7 +525,6 @@ export function confirmPendingPoints(user: UserPointsData): {
         continue;
       }
 
-      // Check if enough time has passed for confirmation
       const transactionDate = new Date(transaction.date);
       const hoursElapsed =
         (now.getTime() - transactionDate.getTime()) / (1000 * 60 * 60);
@@ -543,7 +573,6 @@ export function getUserPointsSummary(user: UserPointsData): {
         const hoursRemaining =
           POINT_CONFIRMATION.CONFIRMATION_DELAY_HOURS - hoursElapsed;
 
-        // Count as "pending confirmation" if it will be confirmed within next 24 hours
         if (hoursRemaining > 0 && hoursRemaining <= 24) {
           pendingConfirmation += transaction.points;
         }
