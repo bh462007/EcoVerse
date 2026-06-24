@@ -12,6 +12,7 @@ import {
   confirmPendingPoints,
   getUserPointsSummary,
   calculateStreakUpdate,
+  shouldConfirmImmediately,
 } from '@/lib/rewards-system';
 import { inferPackaging } from '@/lib/packaging-inference';
 
@@ -187,10 +188,10 @@ export async function POST(req: Request) {
       }
 
       // --- POST-UPDATE DERIVED CALCULATIONS ---
-      // Compute level, achievements, and bonuses based on the actual post-increment state.
-      const levelData = calculateLevel
-        ? calculateLevel(initialUpdate.totalPointsEarned || 0)
-        : { level: oldLevel };
+      // Achievements are checked first, since their points must be credited
+      // to the user's balance before level is computed — otherwise a level
+      // earned via an achievement's points (rather than scan points alone)
+      // would be missed.
       const earnedAchievements = checkAchievements
         ? checkAchievements(initialUpdate)
         : [];
@@ -198,23 +199,8 @@ export async function POST(req: Request) {
         ? calculateMonthlyBonus(initialUpdate)
         : 0;
 
-      // Persist level and achievements independently, so a partial overlap
-      // on achievements (some IDs already present, some genuinely new)
-      // can't cause the level update — or the non-overlapping achievements
-      // — to be silently dropped.
       let updatedUser = initialUpdate;
-      if (levelData.level > oldLevel) {
-        // $max only applies the update if the new value is actually
-        // greater, which is itself a safe guard against a concurrent
-        // request regressing the level.
-        await User.updateOne(
-          { email: userEmail },
-          {
-            $max: { level: levelData.level },
-            $set: { updatedAt: new Date() },
-          }
-        );
-      }
+      let actuallyInsertedAchievements = earnedAchievements;
 
       if (earnedAchievements.length > 0) {
         const earnedAt = new Date();
@@ -230,27 +216,112 @@ export async function POST(req: Request) {
           earnedAt,
         }));
 
-        // Insert each achievement individually, guarded by its own ID, so a
-        // concurrent request that already inserted one of these IDs only
-        // blocks that specific achievement — not the others in this batch.
-        await User.bulkWrite(
-          achievementRecords.map((record) => ({
-            updateOne: {
-              filter: {
-                email: userEmail,
-                'achievements.id': { $ne: record.id },
-              },
-              update: {
-                $push: { achievements: record },
-              },
+        // Insert each achievement individually via its own findOneAndUpdate
+        // (rather than batching into bulkWrite) so the return value of each
+        // call tells us, unambiguously, whether THIS write was the one that
+        // inserted that specific achievement — null means the filter didn't
+        // match (already present, whether from this user's own prior scan or
+        // a concurrent request that won the race), so we don't double-credit
+        // points for it.
+        actuallyInsertedAchievements = [];
+        for (const record of achievementRecords) {
+          const inserted = await User.findOneAndUpdate(
+            {
+              email: userEmail,
+              'achievements.id': { $ne: record.id },
             },
-          }))
+            { $push: { achievements: record } },
+            { new: false } // we only need to know whether it matched
+          );
+          if (inserted) {
+            const original = earnedAchievements.find((a) => a.id === record.id);
+            if (original) actuallyInsertedAchievements.push(original);
+          }
+        }
+
+        const achievementPoints = actuallyInsertedAchievements.reduce(
+          (sum, a) => sum + a.points,
+          0
+        );
+
+        if (achievementPoints > 0) {
+          const isAchievementConfirmed = shouldConfirmImmediately
+            ? shouldConfirmImmediately('achievement')
+            : true;
+
+          await User.updateOne(
+            { email: userEmail },
+            {
+              $inc: {
+                rewardPoints: achievementPoints,
+                totalPointsEarned: achievementPoints,
+                confirmedPoints: isAchievementConfirmed ? achievementPoints : 0,
+                unconfirmedPoints: isAchievementConfirmed
+                  ? 0
+                  : achievementPoints,
+              },
+              $push: {
+                rewardTransactions: {
+                  _id: new mongoose.Types.ObjectId(),
+                  type: 'earned',
+                  points: achievementPoints,
+                  pointsType: isAchievementConfirmed
+                    ? 'confirmed'
+                    : 'unconfirmed',
+                  reason: 'achievement',
+                  description: `Earned: ${actuallyInsertedAchievements
+                    .map((a) => a.name)
+                    .join(', ')}`,
+                  date: earnedAt,
+                  confirmedAt: isAchievementConfirmed ? earnedAt : null,
+                },
+              },
+            }
+          );
+        }
+      }
+
+      // Recompute level off the up-to-date total, now that achievement
+      // points (if any) have been credited.
+      const latestForLevel = await User.findOne({ email: userEmail });
+      const levelData = calculateLevel
+        ? calculateLevel(latestForLevel?.totalPointsEarned || 0)
+        : { level: oldLevel };
+
+      if (levelData.level > oldLevel) {
+        // $max only applies the update if the new value is actually
+        // greater, which is itself a safe guard against a concurrent
+        // request regressing the level.
+        await User.updateOne(
+          { email: userEmail },
+          {
+            $max: { level: levelData.level },
+            $set: { updatedAt: new Date() },
+          }
         );
       }
 
-      if (levelData.level > oldLevel || earnedAchievements.length > 0) {
-        updatedUser =
-          (await User.findOne({ email: userEmail })) || initialUpdate;
+      if (
+        levelData.level > oldLevel ||
+        actuallyInsertedAchievements.length > 0
+      ) {
+        const freshUser = await User.findOne({ email: userEmail });
+        if (!freshUser) {
+          // The user document vanished between our writes and this read
+          // (e.g. concurrent account deletion). Don't silently fall back to
+          // the stale initialUpdate snapshot — it predates the level and
+          // achievement updates we just persisted, so the response would
+          // misrepresent the actual (now-nonexistent) account state.
+          console.error(
+            '❌ User document missing after scan update:',
+            userEmail
+          );
+          return NextResponse.json(
+            { error: 'User account no longer exists' },
+            { status: 404 }
+          );
+        }
+        updatedUser = freshUser;
       }
 
       // We use the ground-truth data from 'updatedUser' for the final response.
@@ -273,7 +344,7 @@ export async function POST(req: Request) {
           pointsSummary,
           level: updatedUser.level,
           leveledUp: updatedUser.level > oldLevel,
-          newAchievements: earnedAchievements,
+          newAchievements: actuallyInsertedAchievements,
           streakCount: updatedUser.streakCount,
           bestStreakCount: updatedUser.bestStreakCount,
           streakProtectorUsed: streakUpdate.streakProtectorsUsed > 0,
