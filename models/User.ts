@@ -44,6 +44,7 @@ export interface IUser extends Document {
   email: string;
   password: string | null;
   monthlyCarbon: number;
+  monthlyCarbonGoal: number | null;
   totalScanned: number;
   joinedAt: string;
   authProvider: 'email' | 'google';
@@ -132,6 +133,10 @@ const UserSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true },
     password: { type: String, required: false, default: null }, // Managed by Firebase; not stored
     monthlyCarbon: { type: Number, default: 0 },
+    // User-configurable monthly CO2 target. null means the user hasn't set
+    // one yet — callers should fall back to a sensible default (40kg) rather
+    // than treating null as zero.
+    monthlyCarbonGoal: { type: Number, default: null },
     totalScanned: { type: Number, default: 0 },
     joinedAt: { type: String, default: () => new Date().toISOString() },
     authProvider: { type: String, enum: ['email', 'google'], default: 'email' },
