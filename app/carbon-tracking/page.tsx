@@ -264,6 +264,7 @@ export default function CarbonTrackingPage() {
                   min={1}
                   max={10000}
                   step="0.1"
+                  aria-label="Monthly carbon goal in kg CO₂"
                   value={goalInput}
                   onChange={(e) => setGoalInput(e.target.value)}
                   className="w-32"

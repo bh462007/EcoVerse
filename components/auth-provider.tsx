@@ -248,12 +248,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     }
 
-    const previousUser = { ...user };
+    const previousAvatarId = user.avatarId;
 
-    setUser({
-      ...user,
-      avatarId,
-    });
+    setUser((current) => (current ? { ...current, avatarId } : current));
 
     try {
       const res = await fetch('/api/user/avatar', {
@@ -266,8 +263,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (err) {
       console.error('Failed to update avatar on server:', err);
-      // Rollback optimistic UI
-      setUser(previousUser);
+      // Roll back only the avatarId field, and only if this optimistic
+      // update is still the most recent state change — otherwise a
+      // concurrent logout() or other update could be clobbered by
+      // restoring a stale snapshot of the whole user object.
+      setUser((current) =>
+        current && current.avatarId === avatarId
+          ? { ...current, avatarId: previousAvatarId }
+          : current
+      );
       toast({
         title: 'Avatar not saved',
         description: 'Something went wrong. Please try again.',
