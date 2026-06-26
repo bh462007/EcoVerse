@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Calendar, TrendingDown, Target, Award, Pencil } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
 
 interface UserData {
   monthlyCarbon: number;
@@ -61,20 +62,13 @@ export default function CarbonTrackingPage() {
     fetchUserData();
   }, [user?.email]);
 
-  const handleSaveGoal = async () => {
-    const parsed = Number(goalInput);
-
-    if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 10000) {
-      console.error('Invalid monthly carbon goal:', goalInput);
-      return;
-    }
-
+  const persistGoal = async (value: number | null) => {
     setSavingGoal(true);
     try {
       const res = await fetch('/api/user/score', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ monthlyCarbonGoal: parsed }),
+        body: JSON.stringify({ monthlyCarbonGoal: value }),
       });
 
       if (res.ok) {
@@ -84,13 +78,41 @@ export default function CarbonTrackingPage() {
         );
         setIsEditingGoal(false);
       } else {
-        console.error('Failed to save monthly carbon goal');
+        toast({
+          title: 'Could not save goal',
+          description: 'Something went wrong. Please try again.',
+          variant: 'destructive',
+        });
       }
     } catch (error) {
       console.error('Error saving monthly carbon goal:', error);
+      toast({
+        title: 'Could not save goal',
+        description: 'Something went wrong. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setSavingGoal(false);
     }
+  };
+
+  const handleSaveGoal = async () => {
+    const parsed = Number(goalInput);
+
+    if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 10000) {
+      toast({
+        title: 'Invalid goal',
+        description: 'Enter a number greater than 0 and at most 10,000 kg.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    await persistGoal(parsed);
+  };
+
+  const handleResetGoal = async () => {
+    await persistGoal(null);
   };
 
   if (loading) {
@@ -111,7 +133,7 @@ export default function CarbonTrackingPage() {
     );
   }
 
-  const monthlyGoal = userData.monthlyCarbonGoal;
+  const monthlyGoal = userData.monthlyCarbonGoal ?? 40;
   const progressPercentage = (userData.monthlyCarbon / monthlyGoal) * 100;
   const dailyAverage =
     userData.scans.length > 0
@@ -254,6 +276,14 @@ export default function CarbonTrackingPage() {
                   disabled={savingGoal}
                 >
                   Save
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetGoal}
+                  disabled={savingGoal}
+                >
+                  Reset to default
                 </Button>
                 <Button
                   variant="ghost"

@@ -259,7 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch('/api/user/avatar', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, avatarId }),
+        body: JSON.stringify({ avatarId }),
       });
 
       if (!res.ok) throw new Error('Failed to update on server');
