@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
   type ReactNode,
 } from 'react';
 import {
@@ -50,6 +51,11 @@ export function useAuth() {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  // Guards against overlapping avatar save requests (e.g. a double-click,
+  // or clicking a second avatar before the first save resolves). Without
+  // this, an older request that fails after a newer one already succeeded
+  // could roll back state the newer request just confirmed server-side.
+  const avatarUpdateInFlightRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchSession = async () => {
@@ -248,6 +254,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     }
 
+    // If another avatar save is already in flight, don't start a second
+    // optimistic update — that's what allows an older request's eventual
+    // failure to roll back state a newer request already confirmed.
+    if (avatarUpdateInFlightRef.current) {
+      return false;
+    }
+    avatarUpdateInFlightRef.current = true;
+
     const previousAvatarId = user.avatarId;
 
     setUser((current) => (current ? { ...current, avatarId } : current));
@@ -278,6 +292,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         variant: 'destructive',
       });
       return false;
+    } finally {
+      avatarUpdateInFlightRef.current = false;
     }
   };
 
