@@ -382,7 +382,7 @@ export function calculateStreakUpdate(
   // Streak broken — today's scan starts a fresh streak.
   return {
     streakCount: 1,
-    bestStreakCount: bestStreak,
+    bestStreakCount: Math.max(bestStreak, 1),
     streakProtectorsUsed: 0,
     streakBroken: currentStreak > 0,
   };

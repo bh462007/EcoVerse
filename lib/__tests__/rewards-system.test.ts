@@ -337,6 +337,18 @@ describe('Rewards System', () => {
       const result = calculateStreakUpdate(day(0), 0, 0, 0, day(3));
       expect(result.streakCount).toBe(1);
       expect(result.streakBroken).toBe(false);
+      // bestStreakCount must never fall below the new streakCount.
+      expect(result.bestStreakCount).toBe(1);
+    });
+
+    it('should clamp bestStreakCount to at least the new streakCount on reset', () => {
+      // currentStreak=5 but bestStreak=0 is an inconsistent input on its
+      // own, but the function should still never return a bestStreakCount
+      // lower than the streakCount it just reset to.
+      const result = calculateStreakUpdate(day(0), 5, 0, 0, day(5));
+      expect(result.streakCount).toBe(1);
+      expect(result.bestStreakCount).toBeGreaterThanOrEqual(result.streakCount);
+      expect(result.bestStreakCount).toBe(1);
     });
   });
 });
