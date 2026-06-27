@@ -258,6 +258,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // optimistic update — that's what allows an older request's eventual
     // failure to roll back state a newer request already confirmed.
     if (avatarUpdateInFlightRef.current) {
+      toast({
+        title: 'Save in progress',
+        description: 'Please wait for the current avatar to finish saving.',
+      });
       return false;
     }
     avatarUpdateInFlightRef.current = true;
