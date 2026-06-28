@@ -7,9 +7,10 @@ import {
   confirmPendingPoints,
   shouldConfirmImmediately,
   getUserPointsSummary,
+  calculateStreakUpdate,
   POINT_REWARDS,
   POINT_CONFIRMATION,
-  RewardUser,
+  UserPointsData,
 } from '../rewards-system';
 
 describe('Rewards System', () => {
@@ -88,7 +89,7 @@ describe('Rewards System', () => {
 
   describe('checkAchievements', () => {
     it('should award first scan achievement', () => {
-      const user: RewardUser = {
+      const user: UserPointsData = {
         totalScanned: 1,
         achievements: [],
       };
@@ -98,16 +99,15 @@ describe('Rewards System', () => {
     });
 
     it('should not award previously earned achievements', () => {
-      const user: RewardUser = {
+      const user: UserPointsData = {
         totalScanned: 10,
         achievements: [
           {
             id: 'first_scan',
             name: 'First Steps',
             description: '',
-            condition: () => true,
+            earnedAt: new Date(),
             points: 50,
-            icon: '',
           },
         ],
       };
@@ -117,7 +117,7 @@ describe('Rewards System', () => {
     });
 
     it('should award complex achievements like Eco Warrior', () => {
-      const user: RewardUser = {
+      const user: UserPointsData = {
         totalScanned: 15,
         monthlyCarbon: 15, // Under 20kg
         achievements: [],
@@ -191,7 +191,7 @@ describe('Rewards System', () => {
       const pastDate = new Date();
       pastDate.setDate(pastDate.getDate() - 8); // 8 days ago
 
-      const user: RewardUser = {
+      const user: UserPointsData = {
         rewardTransactions: [
           {
             type: 'earned',
@@ -214,7 +214,7 @@ describe('Rewards System', () => {
       const recentDate = new Date();
       recentDate.setDate(recentDate.getDate() - 1); // 1 day ago
 
-      const user: RewardUser = {
+      const user: UserPointsData = {
         rewardTransactions: [
           {
             type: 'earned',
@@ -245,7 +245,7 @@ describe('Rewards System', () => {
           (POINT_CONFIRMATION.CONFIRMATION_DELAY_HOURS - 12)
       ); // Will be confirmed in 12 hours
 
-      const user: RewardUser = {
+      const user: UserPointsData = {
         confirmedPoints: 500,
         unconfirmedPoints: 200,
         rewardTransactions: [
@@ -265,6 +265,90 @@ describe('Rewards System', () => {
       expect(summary.unconfirmed).toBe(200);
       expect(summary.total).toBe(700);
       expect(summary.pendingConfirmation).toBe(100); // Because it will be confirmed within 24 hours
+    });
+  });
+
+  describe('calculateStreakUpdate', () => {
+    // Built with Date.UTC so this helper represents a fixed calendar day
+    // independent of the test runner's local timezone — matching how
+    // calculateStreakUpdate itself computes day boundaries in UTC.
+    const day = (offset: number) =>
+      new Date(Date.UTC(2024, 0, 10 + offset, 12, 0, 0)); // Jan 10+offset, 2024, noon UTC
+
+    it('should start a streak at 1 if there is no previous scan', () => {
+      const result = calculateStreakUpdate(null, 0, 0, 0, day(0));
+      expect(result.streakCount).toBe(1);
+      expect(result.bestStreakCount).toBe(1);
+      expect(result.streakProtectorsUsed).toBe(0);
+      expect(result.streakBroken).toBe(false);
+    });
+
+    it('should not change the streak for a second scan on the same day', () => {
+      const result = calculateStreakUpdate(day(0), 3, 5, 0, day(0));
+      expect(result.streakCount).toBe(3);
+      expect(result.bestStreakCount).toBe(5);
+      expect(result.streakProtectorsUsed).toBe(0);
+    });
+
+    it('should treat a late-night UTC scan followed by an early-morning UTC scan as consecutive days', () => {
+      const lastScan = new Date(Date.UTC(2024, 0, 10, 23, 30, 0)); // 11:30 PM UTC
+      const now = new Date(Date.UTC(2024, 0, 11, 0, 30, 0)); // 12:30 AM UTC next day
+      const result = calculateStreakUpdate(lastScan, 3, 5, 0, now);
+      expect(result.streakCount).toBe(4);
+    });
+
+    it('should increment the streak for a scan on the consecutive day', () => {
+      const result = calculateStreakUpdate(day(0), 3, 5, 0, day(1));
+      expect(result.streakCount).toBe(4);
+      expect(result.bestStreakCount).toBe(5);
+      expect(result.streakBroken).toBe(false);
+    });
+
+    it('should update bestStreakCount when the new streak exceeds it', () => {
+      const result = calculateStreakUpdate(day(0), 5, 5, 0, day(1));
+      expect(result.streakCount).toBe(6);
+      expect(result.bestStreakCount).toBe(6);
+    });
+
+    it('should reset the streak to 1 after a missed day with no protector', () => {
+      const result = calculateStreakUpdate(day(0), 10, 12, 0, day(2));
+      expect(result.streakCount).toBe(1);
+      expect(result.bestStreakCount).toBe(12);
+      expect(result.streakProtectorsUsed).toBe(0);
+      expect(result.streakBroken).toBe(true);
+    });
+
+    it('should consume a streak protector to bridge exactly one missed day', () => {
+      const result = calculateStreakUpdate(day(0), 10, 12, 2, day(2));
+      expect(result.streakCount).toBe(11);
+      expect(result.bestStreakCount).toBe(12);
+      expect(result.streakProtectorsUsed).toBe(1);
+      expect(result.streakBroken).toBe(false);
+    });
+
+    it('should not use a protector to bridge a gap of more than one missed day', () => {
+      const result = calculateStreakUpdate(day(0), 10, 12, 2, day(4));
+      expect(result.streakCount).toBe(1);
+      expect(result.streakProtectorsUsed).toBe(0);
+      expect(result.streakBroken).toBe(true);
+    });
+
+    it('should not break a streak of 0 (new user with no streak yet)', () => {
+      const result = calculateStreakUpdate(day(0), 0, 0, 0, day(3));
+      expect(result.streakCount).toBe(1);
+      expect(result.streakBroken).toBe(false);
+      // bestStreakCount must never fall below the new streakCount.
+      expect(result.bestStreakCount).toBe(1);
+    });
+
+    it('should clamp bestStreakCount to at least the new streakCount on reset', () => {
+      // currentStreak=5 but bestStreak=0 is an inconsistent input on its
+      // own, but the function should still never return a bestStreakCount
+      // lower than the streakCount it just reset to.
+      const result = calculateStreakUpdate(day(0), 5, 0, 0, day(5));
+      expect(result.streakCount).toBe(1);
+      expect(result.bestStreakCount).toBeGreaterThanOrEqual(result.streakCount);
+      expect(result.bestStreakCount).toBe(1);
     });
   });
 });

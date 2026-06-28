@@ -1,5 +1,12 @@
 // Rewards System Configuration and Logic
 
+import type {
+  IScan,
+  IAchievement,
+  IPurchasedItem,
+  IRewardTransaction,
+} from '@/models/User';
+
 export interface Achievement {
   id: string;
   name: string;
@@ -10,14 +17,14 @@ export interface Achievement {
 }
 
 export interface RewardTransaction {
-  _id?: unknown;
+  _id?: string;
   type: 'earned' | 'redeemed';
   points: number;
   pointsType: 'confirmed' | 'unconfirmed';
   reason: string;
   description: string;
   date: Date;
-  confirmedAt?: Date | null;
+  confirmedAt?: Date;
 }
 
 export interface RewardShopItem {
@@ -30,34 +37,28 @@ export interface RewardShopItem {
   available: boolean;
 }
 
-// NEW: Proper TypeScript interface to replace 'any' and 'unknown'
+// Minimal shape of a user document that the rewards-system functions need.
+// Fields are optional and reuse the real Mongoose interfaces from
+// models/User.ts (rather than redeclaring the shape inline) so this type
+// can't drift out of sync with the actual schema, and so callers — including
+// tests — can construct partial user objects without supplying every field.
 export interface RewardUser {
   totalScanned?: number;
   streakCount?: number;
   monthlyCarbon?: number;
   level?: number;
-  scans?: {
-    carbonEstimate: number;
-    productName: string;
-    category: string;
-    confidence: 'high' | 'medium' | 'low';
-    barcode: string;
-    date: Date;
-  }[];
   totalPointsEarned?: number;
-  achievements?: {
-    id: string;
-    name: string;
-    description: string;
-    earnedAt?: Date;
-    points: number;
-    condition?: (user: RewardUser) => boolean;
-    icon?: string;
-  }[];
-  rewardTransactions?: RewardTransaction[];
   confirmedPoints?: number;
   unconfirmedPoints?: number;
+  scans?: IScan[];
+  achievements?: IAchievement[];
+  purchasedItems?: IPurchasedItem[];
+  rewardTransactions?: IRewardTransaction[];
 }
+
+// Alias kept for backwards compatibility with code/tests written against
+// the earlier name for this type.
+export type UserPointsData = RewardUser;
 
 // Point confirmation system configuration
 export const POINT_CONFIRMATION = {
@@ -220,9 +221,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     name: 'Eco Warrior',
     description: 'Keep monthly carbon footprint under 20kg',
     condition: (user) =>
-      user.monthlyCarbon != null &&
-      user.monthlyCarbon < 20 &&
-      (user.totalScanned ?? 0) >= 10,
+      (user.monthlyCarbon ?? 0) < 20 && (user.totalScanned ?? 0) >= 10,
     points: 300,
     icon: '🌱',
   },
@@ -231,9 +230,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     name: 'Carbon Conscious',
     description: 'Keep monthly carbon footprint under 30kg',
     condition: (user) =>
-      user.monthlyCarbon != null &&
-      user.monthlyCarbon < 30 &&
-      (user.totalScanned ?? 0) >= 5,
+      (user.monthlyCarbon ?? 0) < 30 && (user.totalScanned ?? 0) >= 5,
     points: 150,
     icon: '🌿',
   },
@@ -242,9 +239,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     name: 'Zero Waste Hero',
     description: 'Keep monthly carbon footprint under 10kg',
     condition: (user) =>
-      user.monthlyCarbon != null &&
-      user.monthlyCarbon < 10 &&
-      (user.totalScanned ?? 0) >= 15,
+      (user.monthlyCarbon ?? 0) < 10 && (user.totalScanned ?? 0) >= 15,
     points: 500,
     icon: '🌍',
   },
@@ -265,7 +260,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     id: 'level_5',
     name: 'Rising Star',
     description: 'Reach Level 5',
-    condition: (user) => (user.level ?? 1) >= 5,
+    condition: (user) => (user.level ?? 0) >= 5,
     points: 500,
     icon: '⭐',
   },
@@ -273,7 +268,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     id: 'level_10',
     name: 'Sustainability Champion',
     description: 'Reach Level 10',
-    condition: (user) => (user.level ?? 1) >= 10,
+    condition: (user) => (user.level ?? 0) >= 10,
     points: 1000,
     icon: '🏅',
   },
@@ -281,7 +276,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     id: 'level_15',
     name: 'Eco Legend',
     description: 'Reach the maximum Level 15',
-    condition: (user) => (user.level ?? 1) >= 15,
+    condition: (user) => (user.level ?? 0) >= 15,
     points: 2500,
     icon: '🌟',
   },
@@ -304,6 +299,94 @@ export const ACHIEVEMENTS: Achievement[] = [
     icon: '🏃',
   },
 ];
+
+// Calculates the next streak state for a scan happening "now", given the
+// user's last scan date and current streak. Pure function — no DB access —
+// so the route layer can compute the values to persist atomically.
+//
+// Rules:
+// - Same calendar day as the last scan: streak unchanged (no double-counting
+//   multiple scans in one day).
+// - Exactly one calendar day after the last scan: streak continues, +1.
+// - More than one day gap: if the user has a streak protector available, it
+//   is consumed to bridge the gap and the streak continues, +1. Otherwise
+//   the streak resets to 1 (today's scan starts a new streak).
+// - No previous scan at all: streak starts at 1.
+//
+// Uses UTC, not the server's local timezone, to compute calendar-day
+// boundaries, so the streak cutoff doesn't shift depending on what TZ the
+// server process happens to run under.
+export function calculateStreakUpdate(
+  lastScanDate: Date | null,
+  currentStreak: number,
+  bestStreak: number,
+  streakProtectors: number,
+  now: Date = new Date()
+): {
+  streakCount: number;
+  bestStreakCount: number;
+  streakProtectorsUsed: number;
+  streakBroken: boolean;
+} {
+  const startOfDay = (d: Date) =>
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+
+  const today = startOfDay(now);
+
+  if (!lastScanDate) {
+    return {
+      streakCount: 1,
+      bestStreakCount: Math.max(bestStreak, 1),
+      streakProtectorsUsed: 0,
+      streakBroken: false,
+    };
+  }
+
+  const lastDay = startOfDay(lastScanDate);
+  const dayGap = Math.round((today - lastDay) / (1000 * 60 * 60 * 24));
+
+  if (dayGap === 0) {
+    // Already scanned today — streak unchanged.
+    return {
+      streakCount: currentStreak,
+      bestStreakCount: bestStreak,
+      streakProtectorsUsed: 0,
+      streakBroken: false,
+    };
+  }
+
+  if (dayGap === 1) {
+    const newStreak = currentStreak + 1;
+    return {
+      streakCount: newStreak,
+      bestStreakCount: Math.max(bestStreak, newStreak),
+      streakProtectorsUsed: 0,
+      streakBroken: false,
+    };
+  }
+
+  // Gap of more than one day: try to bridge it with a streak protector.
+  // One protector covers exactly one missed day, regardless of gap size,
+  // matching the shop item's description ("protect your streak for one
+  // missed day").
+  if (dayGap === 2 && streakProtectors > 0) {
+    const newStreak = currentStreak + 1;
+    return {
+      streakCount: newStreak,
+      bestStreakCount: Math.max(bestStreak, newStreak),
+      streakProtectorsUsed: 1,
+      streakBroken: false,
+    };
+  }
+
+  // Streak broken — today's scan starts a fresh streak.
+  return {
+    streakCount: 1,
+    bestStreakCount: Math.max(bestStreak, 1),
+    streakProtectorsUsed: 0,
+    streakBroken: currentStreak > 0,
+  };
+}
 
 export function calculateScanPoints(
   carbonEstimate: number,
@@ -408,20 +491,12 @@ export function checkAchievements(user: RewardUser): Achievement[] {
 export function calculateMonthlyBonus(
   user: RewardUser
 ): { points: number; reason: string } | null {
-  if (
-    user.monthlyCarbon != null &&
-    user.monthlyCarbon < 20 &&
-    (user.totalScanned ?? 0) >= 10
-  ) {
+  if ((user.monthlyCarbon ?? 0) < 20 && (user.totalScanned ?? 0) >= 10) {
     return {
       points: POINT_REWARDS.ECO_CHAMPION_GOAL,
       reason: 'Eco Champion - Monthly carbon under 20kg',
     };
-  } else if (
-    user.monthlyCarbon != null &&
-    user.monthlyCarbon < 30 &&
-    (user.totalScanned ?? 0) >= 5
-  ) {
+  } else if ((user.monthlyCarbon ?? 0) < 30 && (user.totalScanned ?? 0) >= 5) {
     return {
       points: POINT_REWARDS.MONTHLY_GOAL,
       reason: 'Monthly Goal - Carbon under 30kg',
@@ -472,10 +547,10 @@ export function getSustainabilityTier(
 
 export function confirmPendingPoints(user: RewardUser): {
   confirmedPoints: number;
-  confirmedTransactions: RewardTransaction[];
+  confirmedTransactions: IRewardTransaction[];
 } {
   let confirmedPoints = 0;
-  const confirmedTransactions: RewardTransaction[] = [];
+  const confirmedTransactions: IRewardTransaction[] = [];
   const now = new Date();
 
   if (user.rewardTransactions) {
