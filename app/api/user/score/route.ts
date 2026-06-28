@@ -204,6 +204,16 @@ export async function POST(req: Request) {
 
     const oldLevel = user.level || 1;
 
+    // Transform Achievement[] to IAchievement[] before persisting
+    const earnedAt = new Date();
+    const achievementRecords = earnedAchievements.map((achievement) => ({
+      id: achievement.id,
+      name: achievement.name,
+      description: achievement.description,
+      points: achievement.points,
+      earnedAt,
+    }));
+
     // Single atomic update to user stats and history
     const finalUpdate = await User.findOneAndUpdate(
       { email },
@@ -240,11 +250,6 @@ export async function POST(req: Request) {
             description: `Manual entry: ${productName}`,
             date: new Date(),
           },
-          ...(earnedAchievements.length > 0 && {
-            achievements: {
-              $each: earnedAchievements,
-            },
-          }),
         },
       },
       {
@@ -260,12 +265,47 @@ export async function POST(req: Request) {
       );
     }
 
+    // Insert achievements with deduplication
+    let actuallyInsertedAchievements = 0;
+    for (const record of achievementRecords) {
+      const inserted = await User.findOneAndUpdate(
+        { email, 'achievements.id': { $ne: record.id } },
+        {
+          $push: { achievements: record },
+          $inc: {
+            rewardPoints: record.points,
+            totalPointsEarned: record.points,
+          },
+        },
+        { new: false }
+      );
+      if (inserted) {
+        actuallyInsertedAchievements++;
+      }
+    }
+
+    // Recompute level if achievements were inserted
+    let finalLevel = levelData.level;
+    if (actuallyInsertedAchievements > 0) {
+      const freshUser = await User.findOne({ email });
+      if (freshUser) {
+        const recomputedLevel = calculateLevel(freshUser.totalPointsEarned || 0);
+        finalLevel = recomputedLevel.level;
+        if (finalLevel > levelData.level) {
+          await User.updateOne(
+            { email },
+            { $max: { level: finalLevel } }
+          );
+        }
+      }
+    }
+
     return NextResponse.json({
       newScore: finalUpdate.monthlyCarbon,
       totalScanned: finalUpdate.totalScanned,
       pointsEarned,
-      level: finalUpdate.level,
-      leveledUp: finalUpdate.level > oldLevel,
+      level: finalLevel,
+      leveledUp: finalLevel > oldLevel,
     });
   } catch (error) {
     console.error('Error updating score:', error);
