@@ -22,6 +22,9 @@ type OpenFoodFactsResponse = {
     brands?: string;
     categories_tags?: string[];
     ingredients_text?: string;
+    image_front_url?: string;
+    image_url?: string;
+    image_front_small_url?: string;
   };
   status: number;
   code: string;
@@ -321,6 +324,12 @@ export async function POST(req: Request) {
       // This ensures the UI is always in sync with the actual database state.
       const pointsSummary = getUserPointsSummary(updatedUser);
 
+      const productImage =
+        product.image_front_url ||
+        product.image_url ||
+        product.image_front_small_url ||
+        null;
+
       return NextResponse.json({
         productName: product.product_name,
         brand: product.brands || 'Unknown',
@@ -329,6 +338,7 @@ export async function POST(req: Request) {
         confidence: carbonData.confidence,
         calculation: carbonData.calculation,
         ingredients: product.ingredients_text || 'Not available',
+        image: productImage,
         packaging,
         rewards: {
           pointsEarned,

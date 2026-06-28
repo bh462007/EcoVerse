@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, react/no-unescaped-entities, @typescript-eslint/no-require-imports, react-hooks/exhaustive-deps, @next/next/no-img-element, no-console */
+/* eslint-disable @typescript-eslint/no-explicit-any, @next/next/no-img-element */
 'use client';
 
 import { useState } from 'react';
@@ -48,6 +48,7 @@ export default function ScanPage() {
   const [barcode, setBarcode] = useState('');
   const [product, setProduct] = useState<ProductData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanLock, setScanLock] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -96,6 +97,7 @@ export default function ScanPage() {
     }
 
     setIsLoading(true);
+    setImageError(false);
 
     try {
       const res = await fetch('/api/scan', {
@@ -121,7 +123,7 @@ export default function ScanPage() {
         calculation: data.calculation,
         sustainabilityScore: 'B',
         description: `${data.calculation || 'Calculated using scientific data'}`,
-        image: '/placeholder.svg',
+        image: data.image || null,
         certifications: [],
         packaging: data.packaging || {
           material: 'Unknown',
@@ -216,7 +218,7 @@ export default function ScanPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-cyan-900">Scan Product</h1>
-          <p className="text-gray-400 mt-2">
+          <p className="text-gray-600 mt-2">
             Enter or scan a barcode to check the recyclability, carbon footprint
             and your sustainability score.
           </p>
@@ -234,7 +236,9 @@ export default function ScanPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="barcode">Barcode</Label>
+              <Label htmlFor="barcode" className="text-slate-900 font-medium">
+                Barcode
+              </Label>
               <div className="flex gap-2">
                 <Input
                   id="barcode"
@@ -276,10 +280,10 @@ export default function ScanPage() {
                       variant="outline"
                       className={
                         product.confidence === 'high'
-                          ? 'border-green-500 text-green-400'
+                          ? 'border-green-600 text-green-700 bg-green-50'
                           : product.confidence === 'medium'
-                            ? 'border-yellow-500 text-yellow-400'
-                            : 'border-red-500 text-red-400'
+                            ? 'border-yellow-600 text-yellow-800 bg-yellow-50'
+                            : 'border-red-600 text-red-700 bg-red-50'
                       }
                     >
                       {product.confidence} confidence
@@ -287,16 +291,32 @@ export default function ScanPage() {
                   )}
                 </div>
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-cyan-900 font-medium">
                 {product.brand} • {product.category}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
-                <div></div>
+                <div className="flex items-center justify-center">
+                  {product.image && !imageError ? (
+                    <img
+                      src={product.image}
+                      alt={product.product}
+                      className="rounded-xl object-contain max-h-56 w-full shadow-sm border border-cyan-200 bg-white p-2"
+                      onError={() => setImageError(true)}
+                    />
+                  ) : (
+                    <div className="rounded-xl border border-cyan-200 bg-white/60 flex flex-col items-center justify-center gap-2 h-48 w-full text-cyan-600">
+                      <Scan className="h-10 w-10 opacity-40" />
+                      <span className="text-sm font-medium text-cyan-700">
+                        No image available
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-lg font-semibold mb-2">
+                    <h3 className="text-lg font-semibold mb-2 text-cyan-900">
                       Carbon Footprint
                     </h3>
                     <div className="flex items-center gap-2">
@@ -307,7 +327,7 @@ export default function ScanPage() {
                             <impact.icon
                               className={`h-5 w-5 ${impact.color}`}
                             />
-                            <span className="text-2xl font-bold">
+                            <span className="text-2xl font-bold text-cyan-900">
                               {product.co2_emission} kg CO₂
                             </span>
                             <Badge variant="outline" className={impact.color}>
@@ -318,7 +338,7 @@ export default function ScanPage() {
                       })()}
                     </div>
                     {product.calculation && (
-                      <p className="text-sm text-green mt-2">
+                      <p className="text-sm text-cyan-800 mt-2">
                         Calculation: {product.calculation}
                       </p>
                     )}
@@ -327,47 +347,49 @@ export default function ScanPage() {
                   <Separator />
 
                   <div>
-                    <h4 className="font-medium mb-2 text-green">
+                    <h4 className="font-medium mb-2 text-cyan-900">
                       ♻️ Packaging Info
                     </h4>
                     {product.packaging ? (
-                      <div className="space-y-1 text-sm text-green">
+                      <div className="space-y-1 text-sm text-cyan-900">
                         <div className="flex justify-between">
                           <span>Material:</span>
-                          <span className="text-green">
+                          <span className="font-medium text-cyan-900">
                             {product.packaging.material}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Recyclable:</span>
-                          <span className="text-green">
+                          <span className="font-medium text-cyan-900">
                             {product.packaging.recyclable ? '✅ Yes' : '❌ No'}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Biodegradable:</span>
-                          <span className="text-green">
+                          <span className="font-medium text-cyan-900">
                             {product.packaging.biodegradable
                               ? '✅ Yes'
                               : '❌ No'}
                           </span>
                         </div>
                         {product.packaging.inferred && (
-                          <p className="text-yellow-400 text-xs mt-1">
+                          <p className="text-yellow-800 text-xs mt-1 font-medium">
                             ⚠️ Estimated based on product category
                           </p>
                         )}
                       </div>
                     ) : (
-                      <p className="text-green">No packaging data available.</p>
+                      <p className="text-cyan-800">
+                        No packaging data available.
+                      </p>
                     )}
                   </div>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-medium mb-2 text-green">Description</h4>
-                <p className="text-green">{product.description}</p>
+                <h4 className="font-medium mb-2 text-cyan-900">Description</h4>
+                <p className="text-cyan-800">{product.description}</p>
               </div>
             </CardContent>
           </Card>
