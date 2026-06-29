@@ -130,7 +130,11 @@ export async function POST(req: Request) {
         // in, so a concurrent scan can't cause this one to double-consume a
         // streak protector or double-increment the streak.
         initialUpdate = await User.findOneAndUpdate(
-          { email: userEmail, lastScanDate: previousLastScanDate },
+          {
+            email: userEmail,
+            lastScanDate: previousLastScanDate,
+            'scans.barcode': { $ne: barcode },
+          },
           {
             $inc: {
               monthlyCarbon: carbonEstimate,
@@ -181,13 +185,14 @@ export async function POST(req: Request) {
       }
 
       if (!initialUpdate || !streakUpdate || !pointsData) {
-        return NextResponse.json(
-          {
-            error:
-              'Scan could not be recorded due to concurrent updates. Please try again.',
-          },
-          { status: 409 }
+        const alreadyScanned = await User.findOne(
+          { email: userEmail, 'scans.barcode': barcode },
+          { projection: { _id: 1 } }
         );
+        const reason = alreadyScanned
+          ? 'This product has already been scanned.'
+          : 'Scan could not be recorded due to concurrent updates. Please try again.';
+        return NextResponse.json({ error: reason }, { status: 409 });
       }
 
       // --- POST-UPDATE DERIVED CALCULATIONS ---
