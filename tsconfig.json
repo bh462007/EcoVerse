@@ -23,5 +23,10 @@
     ]
   },
   "include": ["**/*.ts", "**/*.tsx", "next-env.d.ts", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "firebase-functions-sync-prisma",
+    "firebase-functions-sync-ts",
+    "firebase-functions-sync-ts-backup"
+  ]
 }
