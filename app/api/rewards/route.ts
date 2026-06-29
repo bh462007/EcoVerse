@@ -145,7 +145,9 @@ export async function GET(req: Request) {
 
     // Filter available shop items (not yet purchased, unless repeatable)
     const availableShopItems = REWARD_SHOP_ITEMS.filter(
-      (item) => REPEATABLE_ITEMS.includes(item.id) || !purchasedItemIds.includes(item.id)
+      (item) =>
+        REPEATABLE_ITEMS.includes(item.id) ||
+        !purchasedItemIds.includes(item.id)
     );
 
     return NextResponse.json({

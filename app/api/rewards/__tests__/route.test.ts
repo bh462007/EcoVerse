@@ -74,7 +74,9 @@ describe('Rewards API Route', () => {
       const data = await response.json();
 
       // Eco Hero Badge is a one-time purchase, so it should NOT be in availableShopItems
-      const availableIds = data.availableShopItems.map((item: { id: string }) => item.id);
+      const availableIds = data.availableShopItems.map(
+        (item: { id: string }) => item.id
+      );
       expect(availableIds).not.toContain('eco_hero_badge');
 
       // Streak Protector is repeatable, so it SHOULD be in availableShopItems
@@ -235,7 +237,9 @@ describe('Rewards API Route', () => {
       // The findOneAndUpdate call should include 'purchasedItems.itemId': { $ne: 'eco_hero_badge' }
       const calls = (User.findOneAndUpdate as jest.Mock).mock.calls;
       const filterArg = calls[0][0];
-      expect(filterArg['purchasedItems.itemId']).toEqual({ $ne: 'eco_hero_badge' });
+      expect(filterArg['purchasedItems.itemId']).toEqual({
+        $ne: 'eco_hero_badge',
+      });
     });
   });
 });
