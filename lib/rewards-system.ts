@@ -582,6 +582,49 @@ export function shouldConfirmImmediately(reason: string): boolean {
   return POINT_CONFIRMATION.IMMEDIATE_CONFIRMATION.includes(reason);
 }
 
+export async function confirmAgedPoints(email: string): Promise<number> {
+  const cutoff = new Date(
+    Date.now() - POINT_CONFIRMATION.CONFIRMATION_DELAY_HOURS * 60 * 60 * 1000
+  );
+  const { default: User } = await import('@/models/User');
+
+  const user = await User.findOne({ email, unconfirmedPoints: { $gt: 0 } });
+  if (!user) return 0;
+
+  const agedPoints = (user.rewardTransactions || [])
+    .filter(
+      (t: IRewardTransaction) =>
+        t.pointsType === 'unconfirmed' &&
+        t.type === 'earned' &&
+        t.date <= cutoff
+    )
+    .reduce((sum: number, t: IRewardTransaction) => sum + (t.points || 0), 0);
+
+  if (agedPoints === 0) return 0;
+
+  await User.updateOne(
+    { email },
+    {
+      $inc: { confirmedPoints: agedPoints, unconfirmedPoints: -agedPoints },
+      $set: {
+        'rewardTransactions.$[eligible].pointsType': 'confirmed',
+        'rewardTransactions.$[eligible].confirmedAt': new Date(),
+      },
+    },
+    {
+      arrayFilters: [
+        {
+          'eligible.pointsType': 'unconfirmed',
+          'eligible.type': 'earned',
+          'eligible.date': { $lte: cutoff },
+        },
+      ],
+    }
+  );
+
+  return agedPoints;
+}
+
 export function getUserPointsSummary(user: RewardUser): {
   confirmed: number;
   unconfirmed: number;
