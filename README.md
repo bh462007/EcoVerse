@@ -1,6 +1,6 @@
 # EcoVerse
 
-## 📺 Application Demo
+## 📺 Application
 
 <img width="800" height="435" alt="EcoVerse Demo" src="./public/demo.gif" />
 
