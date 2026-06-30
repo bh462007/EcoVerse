@@ -1,14 +1,18 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
-const secretKey = process.env.JWT_SECRET;
-if (!secretKey) {
-  throw new Error(
-    'JWT_SECRET environment variable is required. ' +
-      'Generate one with: openssl rand -base64 32'
-  );
+function getSecretKey(): Uint8Array {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error(
+      'JWT_SECRET environment variable is required. ' +
+        'Generate one with: openssl rand -base64 32'
+    );
+  }
+  return new TextEncoder().encode(secret);
 }
-const key = new TextEncoder().encode(secretKey);
+
+let key: Uint8Array | null = null;
 
 const FALLBACK_SECRET = 'fallback_secret_for_development_only';
 
@@ -22,6 +26,7 @@ function generateJTI(): string {
 }
 
 export async function signToken(payload: { email: string; userId?: string }) {
+  if (!key) key = getSecretKey();
   return await new SignJWT({ ...payload, jti: generateJTI() })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -42,6 +47,7 @@ export async function verifyToken(token: string) {
       // Not signed with the old fallback secret
     }
 
+    if (!key) key = getSecretKey();
     const { payload } = await jwtVerify(token, key, {
       algorithms: ['HS256'],
     });
