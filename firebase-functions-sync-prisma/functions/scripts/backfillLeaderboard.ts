@@ -31,7 +31,6 @@ async function backfillLeaderboard() {
           firebaseId: doc.id,
           name: data.name || "Unknown",
           points: data.points || 0,
-          score: data.score || 0,
         },
       });
 
