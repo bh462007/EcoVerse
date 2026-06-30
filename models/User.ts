@@ -131,42 +131,33 @@ const UserSchema = new mongoose.Schema(
     username: { type: String, default: null },
     full_name: { type: String, default: null },
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: false, default: null }, // Managed by Firebase; not stored
+    password: { type: String, required: false, default: null },
     monthlyCarbon: { type: Number, default: 0 },
-    // User-configurable monthly CO2 target. null means the user hasn't set
-    // one yet — callers should fall back to a sensible default (40kg) rather
-    // than treating null as zero.
     monthlyCarbonGoal: { type: Number, default: null },
     totalScanned: { type: Number, default: 0 },
     joinedAt: { type: String, default: () => new Date().toISOString() },
     authProvider: { type: String, enum: ['email', 'google'], default: 'email' },
     firebaseUid: { type: String, sparse: true },
-    // Scan tracking
     scans: [ScanSchema],
     lastScanDate: { type: Date, default: null },
     streakCount: { type: Number, default: 0 },
     bestStreakCount: { type: Number, default: 0 },
-    // Rewards system - Enhanced with dual point system
-    rewardPoints: { type: Number, default: 0 }, // Legacy field - will be deprecated
-    confirmedPoints: { type: Number, default: 0 }, // Points that are confirmed and can be redeemed
-    unconfirmedPoints: { type: Number, default: 0 }, // Points pending confirmation
-    totalPointsEarned: { type: Number, default: 0 }, // Total of both confirmed and unconfirmed
+    rewardPoints: { type: Number, default: 0 },
+    confirmedPoints: { type: Number, default: 0 },
+    unconfirmedPoints: { type: Number, default: 0 },
+    totalPointsEarned: { type: Number, default: 0 },
     rewardTransactions: [RewardTransactionSchema],
     achievements: [AchievementSchema],
     level: { type: Number, default: 1 },
     nextLevelPoints: { type: Number, default: 100 },
-    // Purchased items from reward shop
     purchasedItems: [PurchasedItemSchema],
-    // Special features
-    streakProtectors: { type: Number, default: 0 }, // Number of streak protectors owned
-    doublePointsDays: { type: Number, default: 0 }, // Number of double points days owned
+    streakProtectors: { type: Number, default: 0 },
+    doublePointsDays: { type: Number, default: 0 },
     hasAdvancedAnalytics: { type: Boolean, default: false },
-    customAvatar: { type: String, default: null }, // URL or identifier for custom avatar
-    activeBadges: [{ type: String }], // Array of active badge IDs
-    // Monthly bonuses tracking
+    customAvatar: { type: String, default: null },
+    activeBadges: [{ type: String }],
     lastMonthlyBonusCheck: { type: Date, default: null },
     monthlyBonusesEarned: { type: Number, default: 0 },
-    // Avatar selection and customization foundation (Issue #33)
     avatarId: { type: String, default: 'avatar-1' },
     avatarCustomization: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
@@ -174,6 +165,12 @@ const UserSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Index for auth token verification: look up by firebaseUid directly.
+UserSchema.index({ firebaseUid: 1 }, { sparse: true });
+
+// Index for sync query path: look up by email with firebaseUid population.
+UserSchema.index({ email: 1, firebaseUid: 1 });
 
 // Virtual for sustainability level
 UserSchema.virtual('sustainabilityLevel').get(function () {
