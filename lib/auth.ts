@@ -1,20 +1,28 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
-import crypto from 'crypto';
 
 const secretKey = process.env.JWT_SECRET;
 if (!secretKey) {
   throw new Error(
     'JWT_SECRET environment variable is required. ' +
-    'Generate one with: openssl rand -base64 32'
+      'Generate one with: openssl rand -base64 32'
   );
 }
 const key = new TextEncoder().encode(secretKey);
 
 const FALLBACK_SECRET = 'fallback_secret_for_development_only';
 
+function generateJTI(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 10);
+  return `${timestamp}-${random}`;
+}
+
 export async function signToken(payload: { email: string; userId?: string }) {
-  return await new SignJWT({ ...payload, jti: crypto.randomUUID() })
+  return await new SignJWT({ ...payload, jti: generateJTI() })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
