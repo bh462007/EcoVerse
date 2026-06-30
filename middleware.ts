@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyToken } from './lib/auth';
 
-const protectedRoutes = ['/dashboard', '/scan', '/rewards', '/carbon-tracking'];
+const protectedRoutes = ['/dashboard', '/scan', '/rewards', '/carbon-tracking', '/analytics'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -52,10 +52,12 @@ export const config = {
     '/scan/:path*',
     '/rewards/:path*',
     '/carbon-tracking/:path*',
+    '/analytics/:path*',
     '/api/scan/:path*',
     '/api/rewards/:path*',
     '/api/user/score/:path*',
     '/api/user/avatar/:path*',
     '/api/user-packaging/:path*',
+    '/api/analytics/:path*',
   ],
 };

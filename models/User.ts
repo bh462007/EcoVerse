@@ -172,6 +172,12 @@ UserSchema.index({ firebaseUid: 1 }, { sparse: true });
 // Index for sync query path: look up by email with firebaseUid population.
 UserSchema.index({ email: 1, firebaseUid: 1 });
 
+// Index for analytics aggregation: scans grouped by month.
+UserSchema.index({ email: 1, 'scans.date': 1 });
+
+// Index for analytics aggregation: scans grouped by category.
+UserSchema.index({ email: 1, 'scans.category': 1 });
+
 // Virtual for sustainability level
 UserSchema.virtual('sustainabilityLevel').get(function () {
   if (this.monthlyCarbon < 20) return 'Excellent';

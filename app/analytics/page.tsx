@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/dashboard-layout';
 import {
   Card,
@@ -17,88 +18,116 @@ import {
   Target,
   Calendar,
   Award,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
+import { getCategoryColor } from '@/lib/carbon-calculator';
 
-// Mock analytics data
-const monthlyData = [
-  { month: 'Jan', carbon: 0, scanned: 0, goal: 0 },
-  { month: 'Feb', carbon: 0, scanned: 0, goal: 0 },
-  { month: 'Mar', carbon: 0, scanned: 0, goal: 0 },
-  { month: 'Apr', carbon: 0, scanned: 0, goal: 0 },
-  { month: 'May', carbon: 0, scanned: 0, goal: 0 },
-  { month: 'Jun', carbon: 4.09, scanned: 2, goal: 10 },
+interface AnalyticsData {
+  monthlyData: Array<{ month: string; carbon: number; scanned: number; goal: number }>;
+  categoryBreakdown: Array<{ category: string; carbon: number; percentage: number }>;
+  weeklyProgress: Array<{ week: string; carbon: number; target: number }>;
+  tips: Array<{ title: string; description: string; impact: string; difficulty: string }>;
+  totalImpact: number;
+  averagePerScan: number;
+}
+
+const CATEGORY_COLORS = [
+  'bg-red-500',
+  'bg-orange-500',
+  'bg-green-500',
+  'bg-yellow-500',
+  'bg-blue-500',
+  'bg-purple-500',
+  'bg-amber-500',
+  'bg-gray-500',
 ];
 
-const categoryBreakdown = [
-  {
-    category: 'Meat & Fish',
-    carbon: 18.5,
-    percentage: 41,
-    color: 'bg-red-500',
-  },
-  { category: 'Dairy', carbon: 8.2, percentage: 18, color: 'bg-orange-500' },
-  {
-    category: 'Fruits & Vegetables',
-    carbon: 6.1,
-    percentage: 14,
-    color: 'bg-green-500',
-  },
-  {
-    category: 'Grains & Cereals',
-    carbon: 5.4,
-    percentage: 12,
-    color: 'bg-yellow-500',
-  },
-  { category: 'Chocolate', carbon: 2.09, percentage: 20, color: 'bg-blue-500' },
-  {
-    category: 'Cold Drinks',
-    carbon: 2.0,
-    percentage: 15,
-    color: 'bg-purple-500',
-  },
-];
-
-const sustainabilityTips = [
-  {
-    title: 'Reduce Meat Consumption',
-    description: 'Try plant-based alternatives 2-3 times per week',
-    impact: 'Could save 12kg CO₂/month',
-    difficulty: 'Medium',
-    icon: '🥗',
-  },
-  {
-    title: 'Choose Local Produce',
-    description: 'Buy fruits and vegetables from local farmers',
-    impact: 'Could save 3kg CO₂/month',
-    difficulty: 'Easy',
-    icon: '🚜',
-  },
-  {
-    title: 'Minimize Packaging',
-    description: 'Choose products with less plastic packaging',
-    impact: 'Could save 2kg CO₂/month',
-    difficulty: 'Easy',
-    icon: '📦',
-  },
-  {
-    title: 'Seasonal Shopping',
-    description: 'Buy seasonal fruits and vegetables',
-    impact: 'Could save 4kg CO₂/month',
-    difficulty: 'Easy',
-    icon: '🍎',
-  },
-];
-
-const weeklyProgress = [
-  { week: 'Week 1', carbon: 0, target: 0 },
-  { week: 'Week 2', carbon: 0, target: 0 },
-  { week: 'Week 3', carbon: 0, target: 0 },
-  { week: 'Week 4', carbon: 4.09, target: 10 },
-];
+function getCategoryColorClass(category: string, index: number): string {
+  const fromCalc = getCategoryColor(category);
+  if (fromCalc !== 'bg-gray-400') return fromCalc;
+  return CATEGORY_COLORS[index % CATEGORY_COLORS.length];
+}
 
 export default function AnalyticsPage() {
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  async function fetchAnalytics() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/analytics');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Failed to fetch analytics');
+      }
+      const json = await res.json();
+      setData(json);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, []);
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+          <p className="text-teal-700">Loading your analytics...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+          <AlertCircle className="h-8 w-8 text-red-500" />
+          <p className="text-red-700">{error}</p>
+          <button
+            onClick={fetchAnalytics}
+            className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Retry
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!data) return null;
+
+  const { monthlyData, categoryBreakdown, weeklyProgress, tips } = data;
+
+  const hasScans = monthlyData.some((m) => m.scanned > 0);
+
+  if (!hasScans) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center">
+          <BarChart3 className="h-12 w-12 text-teal-400" />
+          <h2 className="text-2xl font-bold text-teal-900">No Data Yet</h2>
+          <p className="text-gray-600 max-w-md">
+            Start scanning products to see your carbon footprint analytics and sustainability insights.
+          </p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   const currentMonth = monthlyData[monthlyData.length - 1];
-  const previousMonth = monthlyData[monthlyData.length - 2];
+  const previousMonth = monthlyData[monthlyData.length - 2] || monthlyData[monthlyData.length - 1];
   const carbonChange = currentMonth.carbon - previousMonth.carbon;
   const scanChange = currentMonth.scanned - previousMonth.scanned;
 
@@ -305,7 +334,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {categoryBreakdown.map((category) => (
+              {categoryBreakdown.map((category, index) => (
                 <div key={category.category} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-teal-900">
@@ -322,7 +351,7 @@ export default function AnalyticsPage() {
                   </div>
                   <div className="w-full bg-teal-700 rounded-full h-2">
                     <div
-                      className={`h-2 rounded-full ${category.color}`}
+                      className={`h-2 rounded-full ${getCategoryColorClass(category.category, index)}`}
                       style={{ width: `${category.percentage}%` }}
                     />
                   </div>
@@ -346,7 +375,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {sustainabilityTips.map((tip, index) => (
+              {tips.map((tip, index) => (
                 <div
                   key={index}
                   className="p-4 rounded-lg bg-teal-200/50 border border-teal-600"
