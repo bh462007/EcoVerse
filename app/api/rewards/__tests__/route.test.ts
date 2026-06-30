@@ -161,7 +161,7 @@ describe('Rewards API Route', () => {
 
       // Verify actual update payload operations
       const updateArg = calls[0][1];
-      
+
       // 1. Points Deduction
       expect(updateArg.$inc.confirmedPoints).toBe(-200);
       expect(updateArg.$inc.rewardPoints).toBe(-200);
