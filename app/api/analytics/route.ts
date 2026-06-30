@@ -2,7 +2,20 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
 
 export async function GET(req: Request) {
   const userEmail = req.headers.get('x-user-email');
@@ -54,7 +67,8 @@ export async function GET(req: Request) {
       goal: monthlyCarbonGoal,
     }));
 
-    const categoryTotals: Record<string, { carbon: number; count: number }> = {};
+    const categoryTotals: Record<string, { carbon: number; count: number }> =
+      {};
     for (const scan of scans) {
       const cat = scan.category || 'Unknown';
       if (!categoryTotals[cat]) {
@@ -64,21 +78,36 @@ export async function GET(req: Request) {
       categoryTotals[cat].count += 1;
     }
 
-    const totalCategoryCarbon = Object.values(categoryTotals).reduce((sum, c) => sum + c.carbon, 0);
+    const totalCategoryCarbon = Object.values(categoryTotals).reduce(
+      (sum, c) => sum + c.carbon,
+      0
+    );
     const categoryBreakdown = Object.entries(categoryTotals)
       .map(([category, data]) => ({
         category,
         carbon: parseFloat(data.carbon.toFixed(2)),
-        percentage: totalCategoryCarbon > 0 ? Math.round((data.carbon / totalCategoryCarbon) * 100) : 0,
+        percentage:
+          totalCategoryCarbon > 0
+            ? Math.round((data.carbon / totalCategoryCarbon) * 100)
+            : 0,
       }))
       .sort((a, b) => b.carbon - a.carbon);
 
-    const weeklyProgress = buildWeeklyProgress(scans, currentMonth, monthlyCarbonGoal);
+    const weeklyProgress = buildWeeklyProgress(
+      scans,
+      currentMonth,
+      monthlyCarbonGoal
+    );
 
     const tips = generateTips(categoryBreakdown);
 
-    const totalImpact = parseFloat(monthlyData.reduce((sum, m) => sum + m.carbon, 0).toFixed(2));
-    const averagePerScan = totalScanned > 0 ? parseFloat((totalImpact / totalScanned).toFixed(2)) : 0;
+    const totalImpact = parseFloat(
+      monthlyData.reduce((sum, m) => sum + m.carbon, 0).toFixed(2)
+    );
+    const averagePerScan =
+      totalScanned > 0
+        ? parseFloat((totalImpact / totalScanned).toFixed(2))
+        : 0;
 
     return NextResponse.json({
       monthlyData,
@@ -90,7 +119,10 @@ export async function GET(req: Request) {
     });
   } catch (error) {
     console.error('Analytics API error:', error);
-    return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch analytics' },
+      { status: 500 }
+    );
   }
 }
 
@@ -133,9 +165,18 @@ function buildWeeklyProgress(
 }
 
 function generateTips(
-  categoryBreakdown: Array<{ category: string; carbon: number; percentage: number }>
+  categoryBreakdown: Array<{
+    category: string;
+    carbon: number;
+    percentage: number;
+  }>
 ) {
-  const tips: Array<{ title: string; description: string; impact: string; difficulty: string }> = [];
+  const tips: Array<{
+    title: string;
+    description: string;
+    impact: string;
+    difficulty: string;
+  }> = [];
 
   const highCarbonCategory = categoryBreakdown.find((c) => c.percentage > 30);
 
@@ -151,19 +192,22 @@ function generateTips(
   tips.push(
     {
       title: 'Choose Local Produce',
-      description: 'Buy fruits and vegetables from local farmers to reduce transport emissions.',
+      description:
+        'Buy fruits and vegetables from local farmers to reduce transport emissions.',
       impact: 'Could save 3kg CO₂/month',
       difficulty: 'Easy',
     },
     {
       title: 'Minimize Packaging',
-      description: 'Choose products with less plastic packaging to reduce waste.',
+      description:
+        'Choose products with less plastic packaging to reduce waste.',
       impact: 'Could save 2kg CO₂/month',
       difficulty: 'Easy',
     },
     {
       title: 'Seasonal Shopping',
-      description: 'Buy seasonal fruits and vegetables — they have a lower carbon footprint.',
+      description:
+        'Buy seasonal fruits and vegetables — they have a lower carbon footprint.',
       impact: 'Could save 4kg CO₂/month',
       difficulty: 'Easy',
     }

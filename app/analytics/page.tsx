@@ -25,10 +25,24 @@ import {
 import { getCategoryColor } from '@/lib/carbon-calculator';
 
 interface AnalyticsData {
-  monthlyData: Array<{ month: string; carbon: number; scanned: number; goal: number }>;
-  categoryBreakdown: Array<{ category: string; carbon: number; percentage: number }>;
+  monthlyData: Array<{
+    month: string;
+    carbon: number;
+    scanned: number;
+    goal: number;
+  }>;
+  categoryBreakdown: Array<{
+    category: string;
+    carbon: number;
+    percentage: number;
+  }>;
   weeklyProgress: Array<{ week: string; carbon: number; target: number }>;
-  tips: Array<{ title: string; description: string; impact: string; difficulty: string }>;
+  tips: Array<{
+    title: string;
+    description: string;
+    impact: string;
+    difficulty: string;
+  }>;
   totalImpact: number;
   averagePerScan: number;
 }
@@ -119,7 +133,8 @@ export default function AnalyticsPage() {
           <BarChart3 className="h-12 w-12 text-teal-400" />
           <h2 className="text-2xl font-bold text-teal-900">No Data Yet</h2>
           <p className="text-gray-600 max-w-md">
-            Start scanning products to see your carbon footprint analytics and sustainability insights.
+            Start scanning products to see your carbon footprint analytics and
+            sustainability insights.
           </p>
         </div>
       </DashboardLayout>
@@ -127,7 +142,8 @@ export default function AnalyticsPage() {
   }
 
   const currentMonth = monthlyData[monthlyData.length - 1];
-  const previousMonth = monthlyData[monthlyData.length - 2] || monthlyData[monthlyData.length - 1];
+  const previousMonth =
+    monthlyData[monthlyData.length - 2] || monthlyData[monthlyData.length - 1];
   const carbonChange = currentMonth.carbon - previousMonth.carbon;
   const scanChange = currentMonth.scanned - previousMonth.scanned;
 
