@@ -1,8 +1,9 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# This creates a local file called ecoverse.db to store our data
-SQLALCHEMY_DATABASE_URL = "sqlite:///./ecoverse.db"
+# Reads from environment variables, or defaults to the local file
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ecoverse.db")
 
 # connect_args is needed specifically for SQLite in FastAPI
 engine = create_engine(

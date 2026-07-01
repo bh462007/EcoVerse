@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime, timezone
@@ -17,7 +17,8 @@ class Scan(Base):
     __tablename__ = "scans"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String, ForeignKey("users.id"))
+    # FIX: Added index and made it required (nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     product_name = Column(String, index=True)
     category = Column(String)
     carbon_footprint_kg = Column(Float)
@@ -27,9 +28,12 @@ class Scan(Base):
 
 class UserBadge(Base):
     __tablename__ = "user_badges"
+    # FIX: Prevent duplicate badges for the same user
+    __table_args__ = (UniqueConstraint("user_id", "badge_id", name="uq_user_badge"),)
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String, ForeignKey("users.id"))
+    # FIX: Added index and made it required
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     badge_id = Column(String, index=True)
     earned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

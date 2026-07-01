@@ -1,8 +1,9 @@
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy import update, func
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, timezone
-from typing import List
 
 # Import our new database files
 import models
@@ -25,7 +26,7 @@ def get_db():
     finally:
         db.close()
 
-# --- MODELS (Simplified since the DB handles the heavy lifting) ---
+# --- MODELS ---
 class ProductData(BaseModel):
     product_name: str
     category: str
@@ -43,7 +44,7 @@ class LeaderboardRequest(BaseModel):
 class AnalyticsRequest(BaseModel):
     user_id: str = Field(min_length=1)
 
-# --- ENDPOINT 1: Estimation (Remains Stateless) ---
+# --- ENDPOINT 1: Estimation ---
 @app.post("/api/estimate")
 async def estimate_carbon(product: ProductData):
     category_multipliers = {"food": 2.5, "electronics": 15.0, "cosmetics": 5.0, "clothing": 10.0}
@@ -58,12 +59,16 @@ async def estimate_carbon(product: ProductData):
 
 # --- NEW ENDPOINT: Save a Scan to the Database ---
 @app.post("/api/scans")
-async def create_scan(scan_data: ScanCreate, db: Session = Depends(get_db)):
+def create_scan(scan_data: ScanCreate, db: Session = Depends(get_db)):  # FIX: Removed async
     # 1. Ensure user exists in the database
     user = db.query(models.User).filter(models.User.id == scan_data.user_id).first()
     if not user:
         user = models.User(id=scan_data.user_id, total_emissions_kg=0.0)
         db.add(user)
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()  # FIX: Handle race condition if another request created user first
     
     # 2. Add the scan to the database
     new_scan = models.Scan(
@@ -74,15 +79,19 @@ async def create_scan(scan_data: ScanCreate, db: Session = Depends(get_db)):
     )
     db.add(new_scan)
     
-    # 3. Update the user's total emissions
-    user.total_emissions_kg += scan_data.carbon_footprint_kg
+    # 3. Atomically update user emissions to avoid lost updates
+    db.execute(
+        update(models.User)
+        .where(models.User.id == scan_data.user_id)
+        .values(total_emissions_kg=models.User.total_emissions_kg + scan_data.carbon_footprint_kg)
+    )
     
     db.commit()
     return {"success": True, "message": "Scan logged to database!"}
 
-# --- ENDPOINT 2: Analytics (Now reads from the DB!) ---
+# --- ENDPOINT 2: Analytics ---
 @app.post("/api/analytics")
-async def get_analytics(data: AnalyticsRequest, db: Session = Depends(get_db)):
+def get_analytics(data: AnalyticsRequest, db: Session = Depends(get_db)): # FIX: Removed async
     scans = db.query(models.Scan).filter(models.Scan.user_id == data.user_id).all()
     
     if not scans:
@@ -108,26 +117,30 @@ async def get_analytics(data: AnalyticsRequest, db: Session = Depends(get_db)):
         "top_emitting_category": top_category
     }
 
-# --- ENDPOINT 3: Leaderboard (Now reads from the DB!) ---
+# --- ENDPOINT 3: Leaderboard ---
 @app.post("/api/leaderboard")
-async def get_leaderboard(data: LeaderboardRequest, db: Session = Depends(get_db)):
-    all_users = db.query(models.User).order_by(models.User.total_emissions_kg.asc()).all()
+def get_leaderboard(data: LeaderboardRequest, db: Session = Depends(get_db)): # FIX: Removed async
+    total_users = db.query(func.count(models.User.id)).scalar()
     
-    if not all_users:
+    if not total_users:
         raise HTTPException(status_code=404, detail="No users in database.")
 
-    requesting_user = next((u for u in all_users if u.id == data.requesting_user_id), None)
+    requesting_user = db.query(models.User).filter(models.User.id == data.requesting_user_id).first()
     if not requesting_user:
         raise HTTPException(status_code=404, detail="User not found.")
 
     req_emissions = requesting_user.total_emissions_kg
-    user_rank = 1 + sum(1 for u in all_users if u.total_emissions_kg < req_emissions)
-    people_beaten = sum(1 for u in all_users if u.total_emissions_kg > req_emissions)
     
-    others = len(all_users) - 1
+    # FIX: Use database aggregates instead of loading all rows into Python memory
+    user_rank = 1 + db.query(func.count(models.User.id)).filter(models.User.total_emissions_kg < req_emissions).scalar()
+    people_beaten = db.query(func.count(models.User.id)).filter(models.User.total_emissions_kg > req_emissions).scalar()
+    
+    others = total_users - 1
     percentile = (people_beaten / others) * 100 if others > 0 else 100.0
 
-    top_10 = [{"rank": i + 1, "user_id": u.id, "emissions_kg": u.total_emissions_kg} for i, u in enumerate(all_users[:10])]
+    # FIX: Limit to top 10 at the database query level
+    top_10_users = db.query(models.User).order_by(models.User.total_emissions_kg.asc()).limit(10).all()
+    top_10 = [{"rank": i + 1, "user_id": u.id, "emissions_kg": u.total_emissions_kg} for i, u in enumerate(top_10_users)]
 
     return {
         "success": True,
