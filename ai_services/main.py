@@ -57,10 +57,9 @@ async def estimate_carbon(product: ProductData):
         "estimated_kg_co2": round(estimated_kg_co2, 2)
     }
 
-# --- NEW ENDPOINT: Save a Scan to the Database ---
+# --- ENDPOINT 2: Save a Scan ---
 @app.post("/api/scans")
-def create_scan(scan_data: ScanCreate, db: Session = Depends(get_db)):  # FIX: Removed async
-    # 1. Ensure user exists in the database
+def create_scan(scan_data: ScanCreate, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.id == scan_data.user_id).first()
     if not user:
         user = models.User(id=scan_data.user_id, total_emissions_kg=0.0)
@@ -68,9 +67,8 @@ def create_scan(scan_data: ScanCreate, db: Session = Depends(get_db)):  # FIX: R
         try:
             db.flush()
         except IntegrityError:
-            db.rollback()  # FIX: Handle race condition if another request created user first
+            db.rollback() 
     
-    # 2. Add the scan to the database
     new_scan = models.Scan(
         user_id=scan_data.user_id,
         product_name=scan_data.product_name,
@@ -79,7 +77,6 @@ def create_scan(scan_data: ScanCreate, db: Session = Depends(get_db)):  # FIX: R
     )
     db.add(new_scan)
     
-    # 3. Atomically update user emissions to avoid lost updates
     db.execute(
         update(models.User)
         .where(models.User.id == scan_data.user_id)
@@ -89,23 +86,21 @@ def create_scan(scan_data: ScanCreate, db: Session = Depends(get_db)):  # FIX: R
     db.commit()
     return {"success": True, "message": "Scan logged to database!"}
 
-# --- ENDPOINT 2: Analytics ---
+# --- ENDPOINT 3: Analytics ---
 @app.post("/api/analytics")
-def get_analytics(data: AnalyticsRequest, db: Session = Depends(get_db)): # FIX: Removed async
-    scans = db.query(models.Scan).filter(models.Scan.user_id == data.user_id).all()
+def get_analytics(data: AnalyticsRequest, db: Session = Depends(get_db)):
+    # FIX: Shifted aggregation entirely into the SQL Database layer
+    category_totals = db.query(
+        models.Scan.category, 
+        func.sum(models.Scan.carbon_footprint_kg).label("total")
+    ).filter(models.Scan.user_id == data.user_id).group_by(models.Scan.category).all()
     
-    if not scans:
+    if not category_totals:
         raise HTTPException(status_code=404, detail="No scan history found for this user.")
 
-    category_totals = {}
-    total_emissions = 0.0
+    total_emissions = sum(row.total for row in category_totals)
+    top_category = max(category_totals, key=lambda x: x.total).category.title()
 
-    for scan in scans:
-        cat = scan.category.title()
-        category_totals[cat] = category_totals.get(cat, 0.0) + scan.carbon_footprint_kg
-        total_emissions += scan.carbon_footprint_kg
-
-    top_category = max(category_totals, key=category_totals.get)
     penalty = (total_emissions / 10.0) * 15  
     score = max(1, min(100, 100 - penalty)) 
 
@@ -117,28 +112,33 @@ def get_analytics(data: AnalyticsRequest, db: Session = Depends(get_db)): # FIX:
         "top_emitting_category": top_category
     }
 
-# --- ENDPOINT 3: Leaderboard ---
-@app.post("/api/leaderboard")
-def get_leaderboard(data: LeaderboardRequest, db: Session = Depends(get_db)): # FIX: Removed async
+# --- ENDPOINT 4: Leaderboard ---
+# FIX: Created a helper function so both GET and POST requests can use the engine
+def _build_leaderboard(requesting_user_id: str, db: Session):
     total_users = db.query(func.count(models.User.id)).scalar()
     
     if not total_users:
         raise HTTPException(status_code=404, detail="No users in database.")
 
-    requesting_user = db.query(models.User).filter(models.User.id == data.requesting_user_id).first()
+    requesting_user = db.query(models.User).filter(models.User.id == requesting_user_id).first()
     if not requesting_user:
         raise HTTPException(status_code=404, detail="User not found.")
 
     req_emissions = requesting_user.total_emissions_kg
     
-    # FIX: Use database aggregates instead of loading all rows into Python memory
     user_rank = 1 + db.query(func.count(models.User.id)).filter(models.User.total_emissions_kg < req_emissions).scalar()
     people_beaten = db.query(func.count(models.User.id)).filter(models.User.total_emissions_kg > req_emissions).scalar()
     
     others = total_users - 1
-    percentile = (people_beaten / others) * 100 if others > 0 else 100.0
+    
+    # FIX: Addressed the edge case for a single-user database
+    if others > 0:
+        percentile = (people_beaten / others) * 100
+        status_message = f"You are beating {round(percentile)}% of users!"
+    else:
+        percentile = 100.0
+        status_message = "You're the first user on the leaderboard!"
 
-    # FIX: Limit to top 10 at the database query level
     top_10_users = db.query(models.User).order_by(models.User.total_emissions_kg.asc()).limit(10).all()
     top_10 = [{"rank": i + 1, "user_id": u.id, "emissions_kg": u.total_emissions_kg} for i, u in enumerate(top_10_users)]
 
@@ -148,6 +148,15 @@ def get_leaderboard(data: LeaderboardRequest, db: Session = Depends(get_db)): # 
         "stats": {
             "user_rank": user_rank,
             "percentile_score": round(percentile, 1),
-            "status_message": f"You are beating {round(percentile)}% of users!"
+            "status_message": status_message
         }
     }
+
+@app.post("/api/leaderboard")
+def get_leaderboard_post(data: LeaderboardRequest, db: Session = Depends(get_db)):
+    return _build_leaderboard(data.requesting_user_id, db)
+
+# FIX: Added GET compatibility for frontend clients
+@app.get("/api/leaderboard")
+def get_leaderboard_get(requesting_user_id: str, db: Session = Depends(get_db)):
+    return _build_leaderboard(requesting_user_id, db)
