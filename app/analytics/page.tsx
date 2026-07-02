@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/components/auth-provider';
 import DashboardLayout from '@/components/dashboard-layout';
 import {
   Card,
@@ -19,92 +21,117 @@ import {
   Award,
 } from 'lucide-react';
 
-// Mock analytics data
-const monthlyData = [
-  { month: 'Jan', carbon: 0, scanned: 0, goal: 0 },
-  { month: 'Feb', carbon: 0, scanned: 0, goal: 0 },
-  { month: 'Mar', carbon: 0, scanned: 0, goal: 0 },
-  { month: 'Apr', carbon: 0, scanned: 0, goal: 0 },
-  { month: 'May', carbon: 0, scanned: 0, goal: 0 },
-  { month: 'Jun', carbon: 4.09, scanned: 2, goal: 10 },
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface MonthlyDataPoint {
+  month: string;
+  year: number;
+  carbon: number;
+  scanned: number;
+  goal: number;
+  isCurrentMonth: boolean;
+  bonusAwarded?: boolean;
+}
+
+interface CategoryDataPoint {
+  category: string;
+  carbon: number;
+  percentage: number;
+}
+
+interface WeeklyDataPoint {
+  week: string;
+  carbon: number;
+  target: number;
+}
+
+interface AnalyticsData {
+  monthlyData: MonthlyDataPoint[];
+  categoryBreakdown: CategoryDataPoint[];
+  weeklyProgress: WeeklyDataPoint[];
+  currentMonth: {
+    carbon: number;
+    scanned: number;
+    goal: number;
+    month: string;
+    year: number;
+  };
+  totalCarbonSaved: number;
+}
+
+// ─── Category colour palette ──────────────────────────────────────────────────
+
+const CATEGORY_COLORS = [
+  'bg-red-500',
+  'bg-orange-500',
+  'bg-yellow-500',
+  'bg-green-500',
+  'bg-teal-500',
+  'bg-blue-500',
+  'bg-purple-500',
+  'bg-pink-500',
 ];
 
-const categoryBreakdown = [
-  {
-    category: 'Meat & Fish',
-    carbon: 18.5,
-    percentage: 41,
-    color: 'bg-red-500',
-  },
-  { category: 'Dairy', carbon: 8.2, percentage: 18, color: 'bg-orange-500' },
-  {
-    category: 'Fruits & Vegetables',
-    carbon: 6.1,
-    percentage: 14,
-    color: 'bg-green-500',
-  },
-  {
-    category: 'Grains & Cereals',
-    carbon: 5.4,
-    percentage: 12,
-    color: 'bg-yellow-500',
-  },
-  { category: 'Chocolate', carbon: 2.09, percentage: 20, color: 'bg-blue-500' },
-  {
-    category: 'Cold Drinks',
-    carbon: 2.0,
-    percentage: 15,
-    color: 'bg-purple-500',
-  },
-];
+// ─── Sustainability tips (static) ─────────────────────────────────────────────
 
 const sustainabilityTips = [
   {
     title: 'Reduce Meat Consumption',
-    description: 'Try plant-based alternatives 2-3 times per week',
-    impact: 'Could save 12kg CO₂/month',
+    description: 'Try plant-based alternatives 2–3 times per week',
+    impact: 'Could save 12 kg CO₂/month',
     difficulty: 'Medium',
-    icon: '🥗',
+    icon: '🥦',
   },
   {
     title: 'Choose Local Produce',
     description: 'Buy fruits and vegetables from local farmers',
-    impact: 'Could save 3kg CO₂/month',
+    impact: 'Could save 3 kg CO₂/month',
     difficulty: 'Easy',
-    icon: '🚜',
+    icon: '🌿',
   },
   {
-    title: 'Minimize Packaging',
+    title: 'Minimise Packaging',
     description: 'Choose products with less plastic packaging',
-    impact: 'Could save 2kg CO₂/month',
+    impact: 'Could save 2 kg CO₂/month',
     difficulty: 'Easy',
-    icon: '📦',
+    icon: '♻️',
   },
   {
     title: 'Seasonal Shopping',
     description: 'Buy seasonal fruits and vegetables',
-    impact: 'Could save 4kg CO₂/month',
+    impact: 'Could save 4 kg CO₂/month',
     difficulty: 'Easy',
     icon: '🍎',
   },
 ];
 
-const weeklyProgress = [
-  { week: 'Week 1', carbon: 0, target: 0 },
-  { week: 'Week 2', carbon: 0, target: 0 },
-  { week: 'Week 3', carbon: 0, target: 0 },
-  { week: 'Week 4', carbon: 4.09, target: 10 },
-];
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AnalyticsPage() {
-  const currentMonth = monthlyData[monthlyData.length - 1];
-  const previousMonth = monthlyData[monthlyData.length - 2];
-  const carbonChange = currentMonth.carbon - previousMonth.carbon;
-  const scanChange = currentMonth.scanned - previousMonth.scanned;
+  const { user } = useAuth();
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const totalCarbonSaved = monthlyData.reduce((acc, month) => {
-    return acc + Math.max(0, month.goal - month.carbon);
-  }, 0);
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      if (!user?.email) return;
+      try {
+        const res = await fetch('/api/user/analytics', {
+          headers: { 'x-user-email': user.email },
+        });
+        if (!res.ok) throw new Error('Failed to load analytics');
+        const json: AnalyticsData = await res.json();
+        setData(json);
+      } catch (err) {
+        console.error('Analytics fetch error:', err);
+        setError('Unable to load analytics data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAnalytics();
+  }, [user?.email]);
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -118,6 +145,40 @@ export default function AnalyticsPage() {
         return 'bg-gray-900/20 text-gray-800 border-gray-700';
     }
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-600">Loading analytics…</div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <DashboardLayout>
+        <div className="text-red-600 p-6">{error ?? 'No data available.'}</div>
+      </DashboardLayout>
+    );
+  }
+
+  const {
+    monthlyData,
+    categoryBreakdown,
+    weeklyProgress,
+    currentMonth,
+    totalCarbonSaved,
+  } = data;
+  const previousMonth =
+    monthlyData.length > 1 ? monthlyData[monthlyData.length - 2] : null;
+  const carbonChange = previousMonth
+    ? currentMonth.carbon - previousMonth.carbon
+    : 0;
+  const scanChange = previousMonth
+    ? currentMonth.scanned - previousMonth.scanned
+    : 0;
 
   return (
     <DashboardLayout>
@@ -175,7 +236,8 @@ export default function AnalyticsPage() {
                 {currentMonth.scanned}
               </div>
               <p className="text-xs text-teal-700">
-                +{scanChange} from last month
+                {scanChange >= 0 ? '+' : ''}
+                {scanChange} from last month
               </p>
             </CardContent>
           </Card>
@@ -200,7 +262,7 @@ export default function AnalyticsPage() {
           </Card>
         </div>
 
-        {/* Monthly Trends */}
+        {/* Monthly Trends + Weekly Progress */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="bg-teal-100 border-none shadow-md">
             <CardHeader>
@@ -213,42 +275,58 @@ export default function AnalyticsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {monthlyData.map((data, index) => (
-                  <div key={data.month} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-teal-500">
-                        {data.month}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-teal-500 w-16 text-right">
-                          {data.carbon}kg
+              {monthlyData.length === 0 ? (
+                <p className="text-teal-600 text-sm py-4 text-center">
+                  No historical data yet — start scanning to build your trend!
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {monthlyData.map((d) => (
+                    <div key={`${d.year}-${d.month}`} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-teal-500">
+                          {d.month} {d.year !== currentMonth.year ? d.year : ''}
+                          {d.isCurrentMonth && (
+                            <span className="ml-1 text-xs text-teal-400">
+                              (current)
+                            </span>
+                          )}
                         </span>
-                        <span className="text-xs text-teal-500">
-                          (Goal: {data.goal}kg)
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-teal-500 w-16 text-right">
+                            {d.carbon.toFixed(1)} kg
+                          </span>
+                          <span className="text-xs text-teal-500">
+                            (Goal: {d.goal} kg)
+                          </span>
+                          {d.bonusAwarded && (
+                            <span title="Eco bonus awarded">🏆</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-400 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full ${d.carbon <= d.goal ? 'bg-green-500' : 'bg-red-500'}`}
+                          style={{
+                            width: `${Math.min((d.carbon / Math.max(d.goal, d.carbon, 1)) * 100, 100)}%`,
+                          }}
+                        />
                       </div>
                     </div>
-                    <div className="w-full bg-gray-400 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full ${data.carbon <= data.goal ? 'bg-green-500' : 'bg-red-500'}`}
-                        style={{
-                          width: `${Math.min((data.carbon / 60) * 100, 100)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 p-3 bg-teal-900/20 rounded-lg border border-teal-800">
-                <div className="flex items-center gap-2">
-                  <TrendingDown className="h-4 w-4 text-green" />
-                  <span className="text-sm font-medium text-green">
-                    {carbonChange < 0 ? 'Decreased' : 'Increased'} by{' '}
-                    {Math.abs(carbonChange).toFixed(1)}kg this month
-                  </span>
+                  ))}
                 </div>
-              </div>
+              )}
+              {previousMonth && (
+                <div className="mt-4 p-3 bg-teal-900/20 rounded-lg border border-teal-800">
+                  <div className="flex items-center gap-2">
+                    <TrendingDown className="h-4 w-4 text-teal-600" />
+                    <span className="text-sm font-medium text-teal-700">
+                      {carbonChange < 0 ? 'Decreased' : 'Increased'} by{' '}
+                      {Math.abs(carbonChange).toFixed(1)} kg this month
+                    </span>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -259,7 +337,7 @@ export default function AnalyticsPage() {
                 Weekly Progress
               </CardTitle>
               <CardDescription className="text-teal-700">
-                This month&apos;s weekly breakdown
+                {currentMonth.month} {currentMonth.year} — weekly breakdown
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -272,9 +350,9 @@ export default function AnalyticsPage() {
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-teal-500">
-                          {week.carbon}kg / {week.target}kg
+                          {week.carbon.toFixed(1)} kg / {week.target} kg
                         </span>
-                        {week.carbon <= week.target && (
+                        {week.carbon <= week.target && week.carbon > 0 && (
                           <Badge className="bg-green-400/50 text-green-600 border-green-500">
                             ✓
                           </Badge>
@@ -282,7 +360,9 @@ export default function AnalyticsPage() {
                       </div>
                     </div>
                     <Progress
-                      value={(week.carbon / week.target) * 100}
+                      value={
+                        week.target > 0 ? (week.carbon / week.target) * 100 : 0
+                      }
                       className="h-2"
                     />
                   </div>
@@ -304,31 +384,38 @@ export default function AnalyticsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {categoryBreakdown.map((category) => (
-                <div key={category.category} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-teal-900">
-                      {category.category}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-teal-500">
-                        {category.carbon}kg
+            {categoryBreakdown.length === 0 ? (
+              <p className="text-teal-600 text-sm py-4 text-center">
+                No scans this month yet — start scanning to see your category
+                breakdown!
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {categoryBreakdown.map((category, idx) => (
+                  <div key={category.category} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-teal-900">
+                        {category.category}
                       </span>
-                      <span className="text-xs text-teal-500">
-                        ({category.percentage}%)
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-teal-500">
+                          {category.carbon.toFixed(2)} kg
+                        </span>
+                        <span className="text-xs text-teal-500">
+                          ({category.percentage}%)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-teal-700 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${CATEGORY_COLORS[idx % CATEGORY_COLORS.length]}`}
+                        style={{ width: `${category.percentage}%` }}
+                      />
                     </div>
                   </div>
-                  <div className="w-full bg-teal-700 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full ${category.color}`}
-                      style={{ width: `${category.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -337,7 +424,7 @@ export default function AnalyticsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-teal-700">
               <Award className="h-5 w-5" />
-              Personalized Sustainability Tips
+              Personalised Sustainability Tips
             </CardTitle>
             <CardDescription className="text-teal-600">
               Based on your shopping patterns, here are ways to reduce your
@@ -376,7 +463,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Environmental Impact */}
+        {/* Environmental Impact Comparison */}
         <Card className="bg-teal-100 border-none shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-teal-900">

@@ -13,6 +13,7 @@ import {
   confirmAgedPoints,
   shouldConfirmImmediately,
 } from '@/lib/rewards-system';
+import { checkAndRunMonthlyRollover } from '@/lib/monthly-cycle';
 
 export async function GET(req: Request) {
   const email = req.headers.get('x-user-email');
@@ -23,6 +24,7 @@ export async function GET(req: Request) {
 
   try {
     await dbConnect();
+    await checkAndRunMonthlyRollover(email);
     const user = await User.findOne({ email }).lean();
 
     if (!user) {
@@ -145,6 +147,7 @@ export async function POST(req: Request) {
     }
 
     await dbConnect();
+    await checkAndRunMonthlyRollover(email);
     const user = await User.findOne({ email });
 
     if (!user) {
@@ -370,6 +373,7 @@ export async function PATCH(req: Request) {
     }
 
     await dbConnect();
+    await checkAndRunMonthlyRollover(email);
 
     const updatedUser = await User.findOneAndUpdate(
       { email },

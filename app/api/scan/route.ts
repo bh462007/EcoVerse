@@ -18,6 +18,7 @@ import {
   calculateStreakUpdate,
   shouldConfirmImmediately,
 } from '@/lib/rewards-system';
+import { checkAndRunMonthlyRollover } from '@/lib/monthly-cycle';
 import { inferPackaging } from '@/lib/packaging-inference';
 
 type OpenFoodFactsResponse = {
@@ -71,6 +72,10 @@ export async function POST(req: Request) {
 
     try {
       await dbConnect();
+
+      // Run monthly rollover if the month has changed before any scan
+      // computations so monthlyCarbon is reset to 0 for the new month.
+      await checkAndRunMonthlyRollover(userEmail);
 
       // The streak/points calculation depends on a snapshot of the user
       // document (lastScanDate, streakCount, streakProtectors), but two
