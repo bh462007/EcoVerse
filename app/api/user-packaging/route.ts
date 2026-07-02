@@ -1,3 +1,6 @@
+// Opt out of static generation - all handlers connect to MongoDB at request time.
+export const dynamic = 'force-dynamic';
+
 // app/api/user-packaging/route.ts
 
 import { NextResponse } from 'next/server';
