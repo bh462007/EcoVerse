@@ -1,4 +1,4 @@
-interface CarbonData {
+export interface CarbonData {
   [key: string]: {
     kgCO2PerKg: number;
     defaultWeight: number; // in kg
@@ -7,7 +7,7 @@ interface CarbonData {
 }
 
 // Real carbon footprint data based on scientific studies
-const carbonDatabase: CarbonData = {
+export const carbonDatabase: CarbonData = {
   // Meat & Fish
   beef: { kgCO2PerKg: 27.0, defaultWeight: 0.5, category: 'Meat & Fish' },
   lamb: { kgCO2PerKg: 24.5, defaultWeight: 0.5, category: 'Meat & Fish' },

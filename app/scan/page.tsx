@@ -42,6 +42,7 @@ interface ProductData {
     biodegradable: boolean;
     inferred?: boolean;
   };
+  source?: string;
 }
 
 export default function ScanPage() {
@@ -105,6 +106,7 @@ export default function ScanPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           barcode: actualBarcode,
+          timezoneOffset: new Date().getTimezoneOffset(),
         }),
       });
 
@@ -131,6 +133,7 @@ export default function ScanPage() {
           biodegradable: false,
         },
         transportDistance: 'Unknown',
+        source: data.source || 'Local Calculator',
       });
 
       toast({
@@ -139,8 +142,14 @@ export default function ScanPage() {
       });
 
       if (data.rewards) {
-        const { pointsEarned, pointsType, leveledUp, newAchievements } =
-          data.rewards;
+        const {
+          pointsEarned,
+          pointsType,
+          leveledUp,
+          newAchievements,
+          streakProtected,
+          milestone,
+        } = data.rewards;
         if (pointsEarned > 0) {
           showNotification({
             type: 'points',
@@ -149,14 +158,38 @@ export default function ScanPage() {
             pointsType,
           });
         }
-        if (leveledUp) {
+        if (streakProtected) {
           setTimeout(() => {
             showNotification({
-              type: 'level_up',
-              message: `Congratulations! You've reached level ${data.rewards.level}!`,
-              level: data.rewards.level,
+              type: 'achievement',
+              message: `🛡️ Streak saved! You used a streak protector to keep your streak alive.`,
+              points: 0,
             });
-          }, 2000);
+          }, 1500);
+        }
+        if (milestone) {
+          setTimeout(
+            () => {
+              showNotification({
+                type: 'achievement',
+                message: `🔥 Milestone Reached: ${milestone} Day Streak!`,
+                points: 0,
+              });
+            },
+            streakProtected ? 3000 : 1500
+          );
+        }
+        if (leveledUp) {
+          setTimeout(
+            () => {
+              showNotification({
+                type: 'level_up',
+                message: `Congratulations! You've reached level ${data.rewards.level}!`,
+                level: data.rewards.level,
+              });
+            },
+            (streakProtected ? 3000 : 1500) + (milestone ? 1500 : 0) + 500
+          );
         }
         if (newAchievements?.length) {
           newAchievements.forEach((achievement: any, index: number) => {
@@ -168,7 +201,10 @@ export default function ScanPage() {
                   points: achievement.points,
                 });
               },
-              3000 + index * 1500
+              3000 +
+                (streakProtected ? 1500 : 0) +
+                (milestone ? 1500 : 0) +
+                index * 1500
             );
           });
         }
@@ -340,6 +376,11 @@ export default function ScanPage() {
                     {product.calculation && (
                       <p className="text-sm text-cyan-800 mt-2">
                         Calculation: {product.calculation}
+                      </p>
+                    )}
+                    {product.source && (
+                      <p className="text-xs text-cyan-700/80 mt-1 font-medium">
+                        Source: {product.source}
                       </p>
                     )}
                   </div>

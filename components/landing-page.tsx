@@ -91,7 +91,7 @@ export default function ModernLandingPage({ onGetStarted }: LandingPageProps) {
       </div>
 
       {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl bg-green-600/70 border-b border-white/20 shadow-sm transition-colors duration-300">
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/70 dark:bg-gray-950/70 border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm transition-colors duration-300">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -104,7 +104,7 @@ export default function ModernLandingPage({ onGetStarted }: LandingPageProps) {
                     height={40}
                     className="h-10 w-auto"
                   />
-                  <span className="text-2xl font-bold text-green-900">
+                  <span className="text-2xl font-bold text-green-900 dark:text-green-400">
                     EcoVerse
                   </span>
                 </Link>
@@ -116,7 +116,7 @@ export default function ModernLandingPage({ onGetStarted }: LandingPageProps) {
               <Link href="/auth/signin">
                 <Button
                   variant="ghost"
-                  className="text-white/80 hover:text-teal-900 hover:bg-white/50"
+                  className="text-gray-700 dark:text-gray-300 hover:text-green-700 dark:hover:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                 >
                   Sign In
                 </Button>
@@ -321,7 +321,7 @@ export default function ModernLandingPage({ onGetStarted }: LandingPageProps) {
       {/* Footer / Contact Section */}
       <footer
         id="contact"
-        className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 text-white py-20 px-6 scroll-mt-24"
+        className="relative bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white py-20 px-6 scroll-mt-24 transition-colors duration-300 border-t border-gray-200 dark:border-gray-800"
       >
         <div className="container mx-auto max-w-7xl">
           <div className="grid md:grid-cols-4 gap-12 mb-16">
@@ -338,21 +338,25 @@ export default function ModernLandingPage({ onGetStarted }: LandingPageProps) {
                     />
                   </Link>
                 </div>
-                <span className="text-3xl font-bold">EcoVerse</span>
+                <span className="text-3xl font-bold text-gray-900 dark:text-white">
+                  EcoVerse
+                </span>
               </div>
-              <p className="text-gray-300 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-md">
+              <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg leading-relaxed max-w-md">
                 Making sustainable shopping accessible to everyone. Join the
                 movement towards a greener future.
               </p>
             </div>
 
             <div>
-              <h3 className="font-bold text-white mb-6 text-xl">Product</h3>
-              <ul className="space-y-4 text-gray-300 dark:text-gray-400">
+              <h3 className="font-bold text-gray-900 dark:text-white mb-6 text-xl">
+                Product
+              </h3>
+              <ul className="space-y-4 text-gray-600 dark:text-gray-400">
                 <li>
                   <a
                     href="#features"
-                    className="hover:text-white transition-colors text-lg"
+                    className="hover:text-green-600 dark:hover:text-green-400 transition-colors text-lg"
                   >
                     Features
                   </a>
@@ -377,12 +381,14 @@ export default function ModernLandingPage({ onGetStarted }: LandingPageProps) {
             </div>
 
             <div>
-              <h3 className="font-bold text-white mb-6 text-xl">Company</h3>
-              <ul className="space-y-4 text-gray-300 dark:text-gray-400">
+              <h3 className="font-bold text-gray-900 dark:text-white mb-6 text-xl">
+                Company
+              </h3>
+              <ul className="space-y-4 text-gray-600 dark:text-gray-400">
                 <li>
                   <a
                     href="#about"
-                    className="hover:text-white transition-colors text-lg"
+                    className="hover:text-green-600 dark:hover:text-green-400 transition-colors text-lg"
                   >
                     About
                   </a>
@@ -390,7 +396,7 @@ export default function ModernLandingPage({ onGetStarted }: LandingPageProps) {
                 <li>
                   <a
                     href="#contact"
-                    className="hover:text-white transition-colors text-lg"
+                    className="hover:text-green-600 dark:hover:text-green-400 transition-colors text-lg"
                   >
                     Contact
                   </a>
@@ -407,12 +413,12 @@ export default function ModernLandingPage({ onGetStarted }: LandingPageProps) {
             </div>
           </div>
 
-          <div className="border-t border-gray-700 dark:border-gray-800 pt-8">
+          <div className="border-t border-gray-200 dark:border-gray-800 pt-8 transition-colors duration-300">
             <div className="flex flex-col md:flex-row justify-between items-center">
-              <p className="text-gray-400 dark:text-gray-500 mb-4 md:mb-0 text-lg">
+              <p className="text-gray-500 dark:text-gray-500 mb-4 md:mb-0 text-lg">
                 © {new Date().getFullYear()} EcoVerse. All rights reserved.
               </p>
-              <div className="flex gap-8 text-gray-400 dark:text-gray-500">
+              <div className="flex gap-8 text-gray-500 dark:text-gray-500">
                 <span
                   className="text-lg opacity-60 cursor-not-allowed transition-colors"
                   aria-disabled="true"

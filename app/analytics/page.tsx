@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/components/auth-provider';
 import DashboardLayout from '@/components/dashboard-layout';
 import {
   Card,
@@ -18,138 +19,111 @@ import {
   Target,
   Calendar,
   Award,
-  Loader2,
-  AlertCircle,
-  RefreshCw,
 } from 'lucide-react';
-import { getCategoryColor } from '@/lib/carbon-calculator';
+
+interface MonthlyDataPoint {
+  month: string;
+  year: number;
+  carbon: number;
+  scanned: number;
+  goal: number;
+  isCurrentMonth: boolean;
+  bonusAwarded?: boolean;
+}
+
+interface CategoryDataPoint {
+  category: string;
+  carbon: number;
+  percentage: number;
+}
+
+interface WeeklyDataPoint {
+  week: string;
+  carbon: number;
+  target: number;
+}
 
 interface AnalyticsData {
-  monthlyData: Array<{
-    month: string;
+  monthlyData: MonthlyDataPoint[];
+  categoryBreakdown: CategoryDataPoint[];
+  weeklyProgress: WeeklyDataPoint[];
+  currentMonth: {
     carbon: number;
     scanned: number;
     goal: number;
-  }>;
-  categoryBreakdown: Array<{
-    category: string;
-    carbon: number;
-    percentage: number;
-  }>;
-  weeklyProgress: Array<{ week: string; carbon: number; target: number }>;
-  tips: Array<{
-    title: string;
-    description: string;
-    impact: string;
-    difficulty: string;
-  }>;
-  totalImpact: number;
-  averagePerScan: number;
+    month: string;
+    year: number;
+  };
+  totalCarbonSaved: number;
 }
 
 const CATEGORY_COLORS = [
   'bg-red-500',
   'bg-orange-500',
-  'bg-green-500',
   'bg-yellow-500',
+  'bg-green-500',
+  'bg-teal-500',
   'bg-blue-500',
   'bg-purple-500',
-  'bg-amber-500',
-  'bg-gray-500',
+  'bg-pink-500',
 ];
 
-function getCategoryColorClass(category: string, index: number): string {
-  const fromCalc = getCategoryColor(category);
-  if (fromCalc !== 'bg-gray-400') return fromCalc;
-  return CATEGORY_COLORS[index % CATEGORY_COLORS.length];
-}
+const sustainabilityTips = [
+  {
+    title: 'Reduce Meat Consumption',
+    description: 'Try plant-based alternatives 2\u20133 times per week',
+    impact: 'Could save 12 kg CO\u2082/month',
+    difficulty: 'Medium',
+    icon: '\uD83E\uDD66',
+  },
+  {
+    title: 'Choose Local Produce',
+    description: 'Buy fruits and vegetables from local farmers',
+    impact: 'Could save 3 kg CO\u2082/month',
+    difficulty: 'Easy',
+    icon: '\uD83C\uDF3F',
+  },
+  {
+    title: 'Minimise Packaging',
+    description: 'Choose products with less plastic packaging',
+    impact: 'Could save 2 kg CO\u2082/month',
+    difficulty: 'Easy',
+    icon: '\u267B\uFE0F',
+  },
+  {
+    title: 'Seasonal Shopping',
+    description: 'Buy seasonal fruits and vegetables',
+    impact: 'Could save 4 kg CO\u2082/month',
+    difficulty: 'Easy',
+    icon: '\uD83C\uDF4E',
+  },
+];
 
 export default function AnalyticsPage() {
+  const { user } = useAuth();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function fetchAnalytics() {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/analytics');
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'Failed to fetch analytics');
-      }
-      const json = await res.json();
-      setData(json);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
+    const fetchAnalytics = async () => {
+      if (!user?.email) return;
+      try {
+        const res = await fetch('/api/user/analytics', {
+          headers: { 'x-user-email': user.email },
+        });
+        if (!res.ok) throw new Error('Failed to load analytics');
+        const json: AnalyticsData = await res.json();
+        setData(json);
+      } catch (err) {
+        console.error('Analytics fetch error:', err);
+        setError('Unable to load analytics data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchAnalytics();
-  }, []);
-
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
-          <p className="text-teal-700">Loading your analytics...</p>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  if (error) {
-    return (
-      <DashboardLayout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <AlertCircle className="h-8 w-8 text-red-500" />
-          <p className="text-red-700">{error}</p>
-          <button
-            onClick={fetchAnalytics}
-            className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Retry
-          </button>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  if (!data) return null;
-
-  const { monthlyData, categoryBreakdown, weeklyProgress, tips } = data;
-
-  const hasScans = monthlyData.some((m) => m.scanned > 0);
-
-  if (!hasScans) {
-    return (
-      <DashboardLayout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center">
-          <BarChart3 className="h-12 w-12 text-teal-400" />
-          <h2 className="text-2xl font-bold text-teal-900">No Data Yet</h2>
-          <p className="text-gray-600 max-w-md">
-            Start scanning products to see your carbon footprint analytics and
-            sustainability insights.
-          </p>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  const currentMonth = monthlyData[monthlyData.length - 1];
-  const previousMonth =
-    monthlyData[monthlyData.length - 2] || monthlyData[monthlyData.length - 1];
-  const carbonChange = currentMonth.carbon - previousMonth.carbon;
-  const scanChange = currentMonth.scanned - previousMonth.scanned;
-
-  const totalCarbonSaved = monthlyData.reduce((acc, month) => {
-    return acc + Math.max(0, month.goal - month.carbon);
-  }, 0);
+  }, [user?.email]);
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -164,6 +138,40 @@ export default function AnalyticsPage() {
     }
   };
 
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-600">Loading analytics\u2026</div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <DashboardLayout>
+        <div className="text-red-600 p-6">{error ?? 'No data available.'}</div>
+      </DashboardLayout>
+    );
+  }
+
+  const {
+    monthlyData,
+    categoryBreakdown,
+    weeklyProgress,
+    currentMonth,
+    totalCarbonSaved,
+  } = data;
+  const previousMonth =
+    monthlyData.length > 1 ? monthlyData[monthlyData.length - 2] : null;
+  const carbonChange = previousMonth
+    ? currentMonth.carbon - previousMonth.carbon
+    : 0;
+  const scanChange = previousMonth
+    ? currentMonth.scanned - previousMonth.scanned
+    : 0;
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -175,12 +183,11 @@ export default function AnalyticsPage() {
           </p>
         </div>
 
-        {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card className="bg-teal-100 border-none shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-teal-700">
-                Total CO₂ Saved
+                Total CO\u2082 Saved
               </CardTitle>
               <Leaf className="h-4 w-4 text-green-400" />
             </CardHeader>
@@ -220,7 +227,8 @@ export default function AnalyticsPage() {
                 {currentMonth.scanned}
               </div>
               <p className="text-xs text-teal-700">
-                +{scanChange} from last month
+                {scanChange >= 0 ? '+' : ''}
+                {scanChange} from last month
               </p>
             </CardContent>
           </Card>
@@ -234,7 +242,7 @@ export default function AnalyticsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-teal-800">
-                {currentMonth.carbon < currentMonth.goal ? '✅' : '❌'}
+                {currentMonth.carbon < currentMonth.goal ? '\u2705' : '\u274C'}
               </div>
               <p className="text-xs text-teal-700">
                 {currentMonth.carbon < currentMonth.goal
@@ -245,7 +253,6 @@ export default function AnalyticsPage() {
           </Card>
         </div>
 
-        {/* Monthly Trends */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="bg-teal-100 border-none shadow-md">
             <CardHeader>
@@ -254,46 +261,62 @@ export default function AnalyticsPage() {
                 Carbon Footprint Trend
               </CardTitle>
               <CardDescription className="text-teal-500">
-                Monthly CO₂ emissions over time
+                Monthly CO\u2082 emissions over time
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {monthlyData.map((data, index) => (
-                  <div key={data.month} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-teal-500">
-                        {data.month}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-teal-500 w-16 text-right">
-                          {data.carbon}kg
+              {monthlyData.length === 0 ? (
+                <p className="text-teal-600 text-sm py-4 text-center">
+                  No historical data yet \u2014 start scanning to build your trend!
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {monthlyData.map((d) => (
+                    <div key={`${d.year}-${d.month}`} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-teal-500">
+                          {d.month} {d.year !== currentMonth.year ? d.year : ''}
+                          {d.isCurrentMonth && (
+                            <span className="ml-1 text-xs text-teal-400">
+                              (current)
+                            </span>
+                          )}
                         </span>
-                        <span className="text-xs text-teal-500">
-                          (Goal: {data.goal}kg)
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-teal-500 w-16 text-right">
+                            {d.carbon.toFixed(1)} kg
+                          </span>
+                          <span className="text-xs text-teal-500">
+                            (Goal: {d.goal} kg)
+                          </span>
+                          {d.bonusAwarded && (
+                            <span title="Eco bonus awarded">{'\uD83C\uDFC6'}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-400 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full ${d.carbon <= d.goal ? 'bg-green-500' : 'bg-red-500'}`}
+                          style={{
+                            width: `${Math.min((d.carbon / Math.max(d.goal, d.carbon, 1)) * 100, 100)}%`,
+                          }}
+                        />
                       </div>
                     </div>
-                    <div className="w-full bg-gray-400 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full ${data.carbon <= data.goal ? 'bg-green-500' : 'bg-red-500'}`}
-                        style={{
-                          width: `${Math.min((data.carbon / 60) * 100, 100)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 p-3 bg-teal-900/20 rounded-lg border border-teal-800">
-                <div className="flex items-center gap-2">
-                  <TrendingDown className="h-4 w-4 text-green" />
-                  <span className="text-sm font-medium text-green">
-                    {carbonChange < 0 ? 'Decreased' : 'Increased'} by{' '}
-                    {Math.abs(carbonChange).toFixed(1)}kg this month
-                  </span>
+                  ))}
                 </div>
-              </div>
+              )}
+              {previousMonth && (
+                <div className="mt-4 p-3 bg-teal-900/20 rounded-lg border border-teal-800">
+                  <div className="flex items-center gap-2">
+                    <TrendingDown className="h-4 w-4 text-teal-600" />
+                    <span className="text-sm font-medium text-teal-700">
+                      {carbonChange < 0 ? 'Decreased' : 'Increased'} by{' '}
+                      {Math.abs(carbonChange).toFixed(1)} kg this month
+                    </span>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -304,7 +327,7 @@ export default function AnalyticsPage() {
                 Weekly Progress
               </CardTitle>
               <CardDescription className="text-teal-700">
-                This month&apos;s weekly breakdown
+                {currentMonth.month} {currentMonth.year} \u2014 weekly breakdown
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -317,17 +340,19 @@ export default function AnalyticsPage() {
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-teal-500">
-                          {week.carbon}kg / {week.target}kg
+                          {week.carbon.toFixed(1)} kg / {week.target} kg
                         </span>
-                        {week.carbon <= week.target && (
+                        {week.carbon <= week.target && week.carbon > 0 && (
                           <Badge className="bg-green-400/50 text-green-600 border-green-500">
-                            ✓
+                            {'\u2713'}
                           </Badge>
                         )}
                       </div>
                     </div>
                     <Progress
-                      value={(week.carbon / week.target) * 100}
+                      value={
+                        week.target > 0 ? (week.carbon / week.target) * 100 : 0
+                      }
                       className="h-2"
                     />
                   </div>
@@ -337,7 +362,6 @@ export default function AnalyticsPage() {
           </Card>
         </div>
 
-        {/* Category Breakdown */}
         <Card className="bg-teal-100 border-none shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-teal-700">
@@ -345,44 +369,50 @@ export default function AnalyticsPage() {
               Carbon Footprint by Category
             </CardTitle>
             <CardDescription className="text-teal-500">
-              Breakdown of your CO₂ emissions by product category this month
+              Breakdown of your CO\u2082 emissions by product category this month
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {categoryBreakdown.map((category, index) => (
-                <div key={category.category} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-teal-900">
-                      {category.category}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-teal-500">
-                        {category.carbon}kg
+            {categoryBreakdown.length === 0 ? (
+              <p className="text-teal-600 text-sm py-4 text-center">
+                No scans this month yet \u2014 start scanning to see your category
+                breakdown!
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {categoryBreakdown.map((category, idx) => (
+                  <div key={category.category} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-teal-900">
+                        {category.category}
                       </span>
-                      <span className="text-xs text-teal-500">
-                        ({category.percentage}%)
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-teal-500">
+                          {category.carbon.toFixed(2)} kg
+                        </span>
+                        <span className="text-xs text-teal-500">
+                          ({category.percentage}%)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-teal-700 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${CATEGORY_COLORS[idx % CATEGORY_COLORS.length]}`}
+                        style={{ width: `${category.percentage}%` }}
+                      />
                     </div>
                   </div>
-                  <div className="w-full bg-teal-700 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full ${getCategoryColorClass(category.category, index)}`}
-                      style={{ width: `${category.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Sustainability Tips */}
         <Card className="bg-teal-100 border-none shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-teal-700">
               <Award className="h-5 w-5" />
-              Personalized Sustainability Tips
+              Personalised Sustainability Tips
             </CardTitle>
             <CardDescription className="text-teal-600">
               Based on your shopping patterns, here are ways to reduce your
@@ -391,7 +421,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {tips.map((tip, index) => (
+              {sustainabilityTips.map((tip, index) => (
                 <div
                   key={index}
                   className="p-4 rounded-lg bg-teal-200/50 border border-teal-600"
@@ -421,7 +451,6 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Environmental Impact */}
         <Card className="bg-teal-100 border-none shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-teal-900">
@@ -435,7 +464,7 @@ export default function AnalyticsPage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="text-center p-4 rounded-lg bg-teal-200/50 border border-teal-700">
-                <div className="text-2xl mb-2">🚗</div>
+                <div className="text-2xl mb-2">{'\uD83D\uDE97'}</div>
                 <div className="text-lg font-bold text-teal-900">
                   {(currentMonth.carbon * 2.3).toFixed(0)} km
                 </div>
@@ -444,16 +473,16 @@ export default function AnalyticsPage() {
                 </div>
               </div>
               <div className="text-center p-4 rounded-lg bg-teal-200/50 border border-teal-700">
-                <div className="text-2xl mb-2">🌳</div>
+                <div className="text-2xl mb-2">{'\uD83C\uDF33'}</div>
                 <div className="text-lg font-bold text-teal-900">
                   {Math.ceil(currentMonth.carbon / 22)} trees
                 </div>
                 <div className="text-sm text-teal-700">
-                  Needed to offset CO₂
+                  Needed to offset CO\u2082
                 </div>
               </div>
               <div className="text-center p-4 rounded-lg bg-teal-200/50 border border-teal-700">
-                <div className="text-2xl mb-2">💡</div>
+                <div className="text-2xl mb-2">{'\uD83D\uDCA1'}</div>
                 <div className="text-lg font-bold text-teal-900">
                   {(currentMonth.carbon * 1.2).toFixed(0)} hours
                 </div>

@@ -1,5 +1,5 @@
 // DashboardLayout.tsx
-/* eslint-disable no-console */
+
 'use client';
 
 import { useState } from 'react';
@@ -64,7 +64,7 @@ export default function DashboardLayout({
               height={40}
               className="h-10 w-auto"
             />
-            <span className="font-serif text-xl font-bold text-green-900">
+            <span className="font-serif text-xl font-bold text-green-900 dark:text-green-400">
               EcoVerse
             </span>
           </Link>

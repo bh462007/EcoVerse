@@ -1,13 +1,5 @@
 import mongoose, { Mongoose } from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI!;
-
-if (!MONGODB_URI) {
-  throw new Error(
-    'Please define the MONGODB_URI environment variable in .env.local'
-  );
-}
-
 // Fix: Extend the global type
 declare global {
   var mongoose:
@@ -25,16 +17,24 @@ if (!cached) {
 }
 
 async function dbConnect(): Promise<Mongoose> {
+  const MONGODB_URI = process.env.MONGODB_URI;
+
+  if (!MONGODB_URI) {
+    throw new Error(
+      'Please define the MONGODB_URI environment variable in .env.local'
+    );
+  }
+
   if (cached!.conn) return cached!.conn;
 
   if (!cached!.promise) {
     const opts = {
       dbName: 'carbontracker',
       bufferCommands: false,
-      serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
-      socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-      family: 4, // Use IPv4, skip trying IPv6
-      maxPoolSize: 10, // Maintain up to 10 socket connections
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      family: 4,
+      maxPoolSize: 10,
       retryWrites: true,
     };
 

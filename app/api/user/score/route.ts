@@ -1,3 +1,6 @@
+// Opt out of static generation - all handlers connect to MongoDB at request time.
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
@@ -10,6 +13,7 @@ import {
   confirmAgedPoints,
   shouldConfirmImmediately,
 } from '@/lib/rewards-system';
+import { checkAndRunMonthlyRollover } from '@/lib/monthly-cycle';
 
 export async function GET(req: Request) {
   const email = req.headers.get('x-user-email');
@@ -20,6 +24,7 @@ export async function GET(req: Request) {
 
   try {
     await dbConnect();
+    await checkAndRunMonthlyRollover(email);
     const user = await User.findOne({ email }).lean();
 
     if (!user) {
@@ -89,7 +94,6 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    /* eslint-disable-next-line no-console */
     console.error('Error fetching user data:', error);
 
     return NextResponse.json(
@@ -143,6 +147,7 @@ export async function POST(req: Request) {
     }
 
     await dbConnect();
+    await checkAndRunMonthlyRollover(email);
     const user = await User.findOne({ email });
 
     if (!user) {
@@ -247,6 +252,7 @@ export async function POST(req: Request) {
             confidence: 'medium',
             barcode: `MANUAL-${Date.now()}`,
             date: new Date(),
+            source: 'Manual Entry',
           },
           rewardTransactions: {
             _id: new mongoose.Types.ObjectId(),
@@ -368,6 +374,7 @@ export async function PATCH(req: Request) {
     }
 
     await dbConnect();
+    await checkAndRunMonthlyRollover(email);
 
     const updatedUser = await User.findOneAndUpdate(
       { email },

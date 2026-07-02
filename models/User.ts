@@ -7,6 +7,7 @@ export interface IScan {
   confidence: 'high' | 'medium' | 'low';
   barcode: string;
   date: Date;
+  source?: string;
 }
 
 export interface IRewardTransaction {
@@ -26,6 +27,18 @@ export interface IAchievement {
   description: string;
   earnedAt: Date;
   points: number;
+}
+
+export interface IMonthlyCarbonArchive {
+  month: number; // 0-11
+  year: number;
+  carbonSpent: number;
+  carbonGoal: number;
+  totalScans: number;
+  pointsEarned: number;
+  bonusAwarded: boolean;
+  bonusPoints: number;
+  archivedAt: Date;
 }
 
 export interface IPurchasedItem {
@@ -74,6 +87,9 @@ export interface IUser extends Document {
   // Monthly bonuses tracking
   lastMonthlyBonusCheck: Date | null;
   monthlyBonusesEarned: number;
+  // Monthly carbon cycle — reset + archive history (Issue #122)
+  lastMonthlyReset: Date | null;
+  monthlyCarbonHistory: IMonthlyCarbonArchive[];
   // Avatar selection and customization foundation (Issue #33)
   avatarId: string;
   avatarCustomization: Record<string, unknown>;
@@ -88,6 +104,7 @@ const ScanSchema = new mongoose.Schema({
   confidence: { type: String, enum: ['high', 'medium', 'low'], required: true },
   barcode: { type: String, required: true },
   date: { type: Date, default: Date.now },
+  source: { type: String, default: 'Local Calculator' },
 });
 
 const RewardTransactionSchema = new mongoose.Schema({
@@ -111,6 +128,21 @@ const AchievementSchema = new mongoose.Schema({
   earnedAt: { type: Date, default: Date.now },
   points: { type: Number, required: true },
 });
+
+const MonthlyCarbonArchiveSchema = new mongoose.Schema(
+  {
+    month: { type: Number, required: true, min: 0, max: 11 },
+    year: { type: Number, required: true },
+    carbonSpent: { type: Number, required: true, default: 0 },
+    carbonGoal: { type: Number, required: true, default: 40 },
+    totalScans: { type: Number, required: true, default: 0 },
+    pointsEarned: { type: Number, required: true, default: 0 },
+    bonusAwarded: { type: Boolean, default: false },
+    bonusPoints: { type: Number, default: 0 },
+    archivedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
 
 const PurchasedItemSchema = new mongoose.Schema({
   itemId: { type: String, required: true },
@@ -158,6 +190,9 @@ const UserSchema = new mongoose.Schema(
     activeBadges: [{ type: String }],
     lastMonthlyBonusCheck: { type: Date, default: null },
     monthlyBonusesEarned: { type: Number, default: 0 },
+    // Monthly carbon cycle (Issue #122)
+    lastMonthlyReset: { type: Date, default: null },
+    monthlyCarbonHistory: { type: [MonthlyCarbonArchiveSchema], default: [] },
     avatarId: { type: String, default: 'avatar-1' },
     avatarCustomization: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
