@@ -1,4 +1,4 @@
-// Opt out of static generation - all handlers connect to MongoDB at request time.
+// Prevent static generation for this API route.
 export const dynamic = 'force-dynamic';
 
 // app/api/user-packaging/route.ts
