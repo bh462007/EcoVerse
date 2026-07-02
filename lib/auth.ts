@@ -1,6 +1,8 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
+const FALLBACK_SECRET = 'fallback_secret_for_development_only';
+
 function getSecretKey(): Uint8Array {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
@@ -9,12 +11,16 @@ function getSecretKey(): Uint8Array {
         'Generate one with: openssl rand -base64 32'
     );
   }
+  if (secret === FALLBACK_SECRET) {
+    throw new Error(
+      'JWT_SECRET must not use the known insecure fallback value. ' +
+        'Generate one with: openssl rand -base64 32'
+    );
+  }
   return new TextEncoder().encode(secret);
 }
 
 let key: Uint8Array | null = null;
-
-const FALLBACK_SECRET = 'fallback_secret_for_development_only';
 
 function generateJTI(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -35,6 +41,8 @@ export async function signToken(payload: { email: string; userId?: string }) {
 }
 
 export async function verifyToken(token: string) {
+  if (!key) key = getSecretKey();
+
   try {
     try {
       const fallbackKey = new TextEncoder().encode(FALLBACK_SECRET);
@@ -47,7 +55,6 @@ export async function verifyToken(token: string) {
       // Not signed with the old fallback secret
     }
 
-    if (!key) key = getSecretKey();
     const { payload } = await jwtVerify(token, key, {
       algorithms: ['HS256'],
     });
