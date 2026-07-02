@@ -1,9 +1,12 @@
+// Opt out of static generation - all handlers connect to MongoDB at request time.
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import mongoose from 'mongoose';
-import { calculateCarbonFootprint } from '@/lib/carbon-calculator';
+import { getCarbonFootprint } from '@/lib/climatiq';
 import {
   calculateScanPoints,
   calculateLevel,
@@ -15,6 +18,7 @@ import {
   calculateStreakUpdate,
   shouldConfirmImmediately,
 } from '@/lib/rewards-system';
+import { checkAndRunMonthlyRollover } from '@/lib/monthly-cycle';
 import { inferPackaging } from '@/lib/packaging-inference';
 
 type OpenFoodFactsResponse = {
@@ -60,14 +64,19 @@ export async function POST(req: Request) {
     );
     const packaging = inferPackaging(categories);
 
-    const carbonData = calculateCarbonFootprint(
-      product.product_name,
-      product.brands
-    );
-    const carbonEstimate = carbonData.carbonFootprint;
-
     try {
       await dbConnect();
+
+      // Resolve carbon footprint using Climatiq with fallback
+      const carbonData = await getCarbonFootprint(
+        product.product_name,
+        product.brands
+      );
+      const carbonEstimate = carbonData.carbonFootprint;
+
+      // Run monthly rollover if the month has changed before any scan
+      // computations so monthlyCarbon is reset to 0 for the new month.
+      await checkAndRunMonthlyRollover(userEmail);
 
       // The streak/points calculation depends on a snapshot of the user
       // document (lastScanDate, streakCount, streakProtectors), but two
@@ -165,6 +174,7 @@ export async function POST(req: Request) {
                 confidence: carbonData.confidence,
                 barcode: barcode,
                 date: scanTimestamp,
+                source: carbonData.source,
               },
               rewardTransactions: {
                 _id: new mongoose.Types.ObjectId(),
@@ -350,6 +360,7 @@ export async function POST(req: Request) {
         category: carbonData.category,
         confidence: carbonData.confidence,
         calculation: carbonData.calculation,
+        source: carbonData.source,
         ingredients: product.ingredients_text || 'Not available',
         image: productImage,
         packaging,

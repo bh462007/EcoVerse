@@ -33,6 +33,7 @@ interface UserStats {
   };
   level?: number;
   achievementCount?: number;
+  streakProtectors?: number;
 }
 
 interface LeaderboardUser {
@@ -78,6 +79,7 @@ export default function Dashboard() {
           rewardPoints: currentUser?.rewardPoints || 0,
           level: currentUser?.level || 1,
           achievementCount: currentUser?.achievementCount || 0,
+          streakProtectors: 0,
         };
 
         // Add detailed points data from rewards API
@@ -86,6 +88,8 @@ export default function Dashboard() {
           stats.pointsSummary = rewardsData.pointsSummary;
           stats.level = rewardsData.level;
           stats.achievementCount = rewardsData.achievements?.length || 0;
+          stats.streakProtectors =
+            rewardsData.specialFeatures?.streakProtectors || 0;
         }
 
         setUserStats(stats);
@@ -413,6 +417,19 @@ export default function Dashboard() {
                 className="mt-2 ml-2 bg-blue-100 text-blue-800"
               >
                 🔥 {userStats.streakCount} day streak!
+                {userStats.streakCount % 7 !== 0 && (
+                  <span className="ml-1 text-xs opacity-75">
+                    ({7 - (userStats.streakCount % 7)} days to next milestone)
+                  </span>
+                )}
+              </Badge>
+            )}
+            {userStats && (userStats.streakProtectors ?? 0) > 0 && (
+              <Badge
+                variant="secondary"
+                className="mt-2 ml-2 bg-purple-100 text-purple-800"
+              >
+                🛡️ {userStats.streakProtectors} Shields Active
               </Badge>
             )}
           </CardContent>

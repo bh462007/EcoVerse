@@ -7,6 +7,10 @@ import {
   POINT_CONFIRMATION,
 } from '@/lib/rewards-system';
 
+// Force dynamic rendering — this route connects to MongoDB at request time
+// and must never be statically generated during `next build`.
+export const dynamic = 'force-dynamic';
+
 // GET /api/debug/points?email=user@email.com - Debug point system for a user
 export async function GET(req: Request) {
   if (process.env.NODE_ENV === 'production') {
@@ -101,7 +105,6 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    /* eslint-disable-next-line no-console */
     console.error('Error debugging points:', error);
     return NextResponse.json(
       { error: 'Failed to debug points' },
@@ -200,7 +203,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error) {
-    /* eslint-disable-next-line no-console */
     console.error('Error in debug action:', error);
     return NextResponse.json(
       { error: 'Failed to perform debug action' },

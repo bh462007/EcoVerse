@@ -1,3 +1,6 @@
+// Prevent static generation for this API route.
+export const dynamic = 'force-dynamic';
+
 // app/api/user-packaging/route.ts
 
 import { NextResponse } from 'next/server';
