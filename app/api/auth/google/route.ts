@@ -1,3 +1,6 @@
+// Opt out of static generation - all handlers connect to MongoDB at request time.
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import mongoose from 'mongoose';
@@ -73,7 +76,6 @@ export async function POST(req: Request) {
     );
   } catch (err) {
     // FIX: Suppress linting rule for tracking low-level operational failures
-    /* eslint-disable-next-line no-console */
     console.error('Failed to upsert user in google route:', err);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });
   }

@@ -1,3 +1,6 @@
+// Opt out of static generation - all handlers connect to MongoDB at request time.
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
@@ -89,7 +92,6 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    /* eslint-disable-next-line no-console */
     console.error('Error fetching user data:', error);
 
     return NextResponse.json(
