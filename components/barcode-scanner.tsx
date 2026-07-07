@@ -44,12 +44,21 @@ export default function BarcodeScanner({
     codeReaderRef.current = new BrowserMultiFormatReader();
   }
 
-  const stopCamera = useCallback(() => {
+  const cleanupCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
+    }
+    streamRef.current = null;
+
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
     }
   }, []);
+
+  const stopCamera = useCallback(() => {
+    cleanupCamera();
+  }, [cleanupCamera]);
 
   const startCamera = useCallback(async () => {
     try {
@@ -114,9 +123,20 @@ export default function BarcodeScanner({
 
   // Hook 1: Handles camera initialization lifecycle
   useEffect(() => {
-    startCamera();
-    return () => stopCamera();
-  }, [startCamera, stopCamera]);
+    let isCancelled = false;
+
+    const initializeCamera = async () => {
+      if (isCancelled) return;
+      await startCamera();
+    };
+
+    void initializeCamera();
+
+    return () => {
+      isCancelled = true;
+      cleanupCamera();
+    };
+  }, [cleanupCamera, startCamera]);
 
   // Hook 2: Handles the scanning interval orchestration
   useEffect(() => {
@@ -180,6 +200,7 @@ export default function BarcodeScanner({
           <div className="relative">
             <video
               ref={videoRef}
+              data-testid="barcode-video"
               className="w-full h-64 bg-black rounded-lg object-cover"
               autoPlay
               playsInline
