@@ -89,7 +89,10 @@ export async function GET(req: Request) {
 
   // Defense-in-depth: verify the auth_token cookie matches the x-user-email header
   const cookies = req.headers.get('cookie') || '';
-  const authToken = cookies.split(';').find(c => c.trim().startsWith('auth_token='))?.split('=')[1];
+  const authToken = cookies
+    .split(';')
+    .find((c) => c.trim().startsWith('auth_token='))
+    ?.split('=')[1];
   if (authToken) {
     const payload = await verifyToken(authToken);
     if (!payload || payload.email !== email) {
