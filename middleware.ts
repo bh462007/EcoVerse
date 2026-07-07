@@ -52,10 +52,6 @@ export const config = {
     '/scan/:path*',
     '/rewards/:path*',
     '/carbon-tracking/:path*',
-    '/api/scan/:path*',
-    '/api/rewards/:path*',
-    '/api/user/score/:path*',
-    '/api/user/avatar/:path*',
-    '/api/user-packaging/:path*',
+    '/api/:path*',
   ],
 };

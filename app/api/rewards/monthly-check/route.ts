@@ -6,6 +6,7 @@ import dbConnect from '@/lib/mongodb';
 import mongoose from 'mongoose';
 import User, { type IUser } from '@/models/User';
 import { calculateMonthlyBonus } from '@/lib/rewards-system';
+import { verifyToken } from '@/lib/auth';
 
 type LeanUser = mongoose.FlattenMaps<IUser> & { _id: mongoose.Types.ObjectId };
 
@@ -15,6 +16,16 @@ export async function POST(req: Request) {
 
   if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Defense-in-depth: verify the auth_token cookie matches the x-user-email header
+  const cookies = req.headers.get('cookie') || '';
+  const authToken = cookies.split(';').find(c => c.trim().startsWith('auth_token='))?.split('=')[1];
+  if (authToken) {
+    const payload = await verifyToken(authToken);
+    if (!payload || payload.email !== email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   try {
@@ -128,6 +139,16 @@ export async function GET(req: Request) {
 
   if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Defense-in-depth: verify the auth_token cookie matches the x-user-email header
+  const cookies = req.headers.get('cookie') || '';
+  const authToken = cookies.split(';').find(c => c.trim().startsWith('auth_token='))?.split('=')[1];
+  if (authToken) {
+    const payload = await verifyToken(authToken);
+    if (!payload || payload.email !== email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   try {
