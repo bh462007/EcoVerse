@@ -37,6 +37,7 @@ export default function BarcodeScanner({
   );
   const videoRef = useRef<HTMLVideoElement>(null);
   const isScanningRef = useRef(false);
+  const isActiveRef = useRef(true);
   const { toast } = useToast();
 
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
@@ -72,6 +73,12 @@ export default function BarcodeScanner({
 
       const mediaStream =
         await navigator.mediaDevices.getUserMedia(constraints);
+
+      if (!isActiveRef.current) {
+        mediaStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       streamRef.current = mediaStream;
 
       if (videoRef.current) {
@@ -79,6 +86,8 @@ export default function BarcodeScanner({
         videoRef.current.play();
       }
     } catch (error) {
+      if (!isActiveRef.current) return;
+
       toast({
         title: 'Camera access denied',
         description: 'Please allow camera access to scan barcodes.',
@@ -123,17 +132,16 @@ export default function BarcodeScanner({
 
   // Hook 1: Handles camera initialization lifecycle
   useEffect(() => {
-    let isCancelled = false;
+    isActiveRef.current = true;
 
     const initializeCamera = async () => {
-      if (isCancelled) return;
       await startCamera();
     };
 
     void initializeCamera();
 
     return () => {
-      isCancelled = true;
+      isActiveRef.current = false;
       cleanupCamera();
     };
   }, [cleanupCamera, startCamera]);

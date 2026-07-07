@@ -41,17 +41,47 @@ describe('BarcodeScanner', () => {
       <BarcodeScanner onScan={jest.fn()} onClose={jest.fn()} />
     );
 
-    await Promise.resolve();
-    await Promise.resolve();
-
-    const videoElement = screen.getByTestId(
+    const videoElement = (await screen.findByTestId(
       'barcode-video'
-    ) as HTMLVideoElement;
-
+    )) as HTMLVideoElement;
     expect(videoElement).toBeInTheDocument();
 
     act(() => {
       unmount();
+    });
+
+    expect(stopMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a late arriving camera stream if unmount happens before getUserMedia resolves', async () => {
+    let resolveGetUserMedia: ((stream: MediaStream) => void) | undefined;
+    const pendingStream = new Promise<MediaStream>((resolve) => {
+      resolveGetUserMedia = resolve;
+    });
+
+    Object.defineProperty(global.navigator, 'mediaDevices', {
+      value: {
+        getUserMedia: jest.fn().mockReturnValue(pendingStream),
+      },
+      configurable: true,
+    });
+
+    const { unmount } = render(
+      <BarcodeScanner onScan={jest.fn()} onClose={jest.fn()} />
+    );
+
+    act(() => {
+      unmount();
+    });
+
+    const lateStream = {
+      getTracks: () => [{ stop: stopMock }],
+      getVideoTracks: () => [{ getCapabilities: () => ({}) }],
+    } as unknown as MediaStream;
+
+    await act(async () => {
+      resolveGetUserMedia?.(lateStream);
+      await Promise.resolve();
     });
 
     expect(stopMock).toHaveBeenCalledTimes(1);
