@@ -48,10 +48,21 @@ export async function getCarbonFootprint(
 
   // 2. Query Climatiq if API key is configured
   if (apiKey && apiKey !== 'your_climatiq_api_key_here') {
+    // Validate external API URLs before making requests
+    const climatiqUrl = 'https://api.climatiq.io/data/v1/search';
+    try {
+      const parsedUrl = new URL(climatiqUrl);
+      if (!parsedUrl.hostname.endsWith('climatiq.io')) {
+        throw new Error('Invalid Climatiq hostname');
+      }
+    } catch {
+      console.warn('[Climatiq API] Invalid URL configuration');
+      return fallback();
+    }
+
     try {
       // Search for the emission factor
-      const searchResponse = await axios.get(
-        'https://api.climatiq.io/data/v1/search',
+      const searchResponse = await axios.get(climatiqUrl,
         {
           headers: { Authorization: `Bearer ${apiKey}` },
           params: {
@@ -96,7 +107,13 @@ export async function getCarbonFootprint(
         );
 
         const co2e = estimateResponse.data?.co2e;
+
+        // Validate CO2e value: reject negative or unreasonably high values
         if (typeof co2e === 'number') {
+          if (co2e < 0 || co2e > 10000) {
+            console.warn(`[Climatiq API] Invalid CO2e value (${co2e}), using fallback`);
+            return fallback();
+          }
           const result: CarbonFootprintResult = {
             carbonFootprint: parseFloat(co2e.toFixed(2)),
             category:
@@ -133,32 +150,34 @@ export async function getCarbonFootprint(
     }
   }
 
-  // 3. Fallback to Local Calculator
-  const localData = calculateCarbonFootprint(productName, brand);
-  const result: CarbonFootprintResult = {
-    carbonFootprint: localData.carbonFootprint,
-    category: localData.category,
-    confidence: localData.confidence,
-    calculation: localData.calculation,
-    source: 'Local Calculator (Fallback)',
-  };
+  return fallback();
 
-  // Cache fallback results to avoid checking Climatiq repeatedly
-  try {
-    await CarbonCache.create({
-      queryKey,
-      carbonEstimate: result.carbonFootprint,
-      category: result.category,
-      confidence: result.confidence,
-      calculation: result.calculation,
-      source: result.source,
-    });
-  } catch (cacheWriteError) {
-    console.warn(
-      '[CarbonCache] Failed to save fallback cache record:',
-      cacheWriteError
-    );
+  function fallback() {
+    const localData = calculateCarbonFootprint(productName, brand);
+    const result: CarbonFootprintResult = {
+      carbonFootprint: localData.carbonFootprint,
+      category: localData.category,
+      confidence: localData.confidence,
+      calculation: localData.calculation,
+      source: 'Local Calculator (Fallback)',
+    };
+
+    // Cache fallback results to avoid checking Climatiq repeatedly
+    try {
+      await CarbonCache.create({
+        queryKey,
+        carbonEstimate: result.carbonFootprint,
+        category: result.category,
+        confidence: result.confidence,
+        calculation: result.calculation,
+        source: result.source,
+      });
+    } catch (cacheWriteError) {
+      console.warn(
+        '[CarbonCache] Failed to save fallback cache record:',
+        cacheWriteError
+      );
+    }
+
+    return result;
   }
-
-  return result;
-}

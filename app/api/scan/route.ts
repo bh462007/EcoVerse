@@ -48,12 +48,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Barcode missing' }, { status: 400 });
   }
 
-  try {
-    const productRes = await axios.get<OpenFoodFactsResponse>(
-      `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
-    );
+  // Barcode validation: must be 8-14 digit string
+  if (typeof barcode !== 'string' || !/^\d{8,14}$/.test(barcode) || barcode.length > 14) {
+    return NextResponse.json({ error: 'Invalid barcode format' }, { status: 400 });
+  }
 
-    const product = productRes.data.product;
+  try {
+    let product;
+    try {
+      const productRes = await axios.get<OpenFoodFactsResponse>(
+        `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
+      );
+      product = productRes.data.product;
+    } catch (offError) {
+      console.warn('Open Food Facts API failed, using barcode as fallback:', offError);
+      product = { product_name: `Product ${barcode}`, brands: 'Unknown' };
+    }
 
     if (!product?.product_name) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
