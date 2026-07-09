@@ -102,7 +102,14 @@ const ScanSchema = new mongoose.Schema({
   carbonEstimate: { type: Number, required: true },
   category: { type: String, required: true },
   confidence: { type: String, enum: ['high', 'medium', 'low'], required: true },
-  barcode: { type: String, required: true },
+  barcode: {
+    type: String,
+    required: true,
+    validate: {
+      validator: (v: string) => /^\d{8,14}$/.test(v),
+      message: 'Barcode must be 8-14 digits',
+    },
+  },
   date: { type: Date, default: Date.now },
   source: { type: String, default: 'Local Calculator' },
 });
