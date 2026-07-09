@@ -1,3 +1,9 @@
+/**
+ * @deprecated This module has been consolidated into `lib/rewards-system.ts`.
+ * Use `calculateStreakUpdate` from `lib/rewards-system.ts` instead.
+ * This file is kept only as a reference and will be removed in a future version.
+ */
+
 export interface StreakUser {
   lastScanDate: Date | null;
   streakCount: number;

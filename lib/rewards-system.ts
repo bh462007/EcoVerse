@@ -381,18 +381,20 @@ export function calculateStreakUpdate(
     };
   }
 
-  // Gap of more than one day: try to bridge it with a streak protector.
-  // One protector covers exactly one missed day, regardless of gap size,
-  // matching the shop item's description ("protect your streak for one
-  // missed day").
-  if (dayGap === 2 && streakProtectors > 0) {
-    const newStreak = currentStreak + 1;
-    return {
-      streakCount: newStreak,
-      bestStreakCount: Math.max(bestStreak, newStreak),
-      streakProtectorsUsed: 1,
-      streakBroken: false,
-    };
+  // Gap of more than one day: try to bridge with streak protectors.
+  // Each protector covers one missed day. If the user has enough
+  // protectors for all missed days, the streak is preserved.
+  if (dayGap > 1) {
+    const missedDays = dayGap - 1;
+    if (streakProtectors >= missedDays) {
+      const newStreak = currentStreak + 1;
+      return {
+        streakCount: newStreak,
+        bestStreakCount: Math.max(bestStreak, newStreak),
+        streakProtectorsUsed: missedDays,
+        streakBroken: false,
+      };
+    }
   }
 
   // Streak broken — today's scan starts a fresh streak.

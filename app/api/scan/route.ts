@@ -395,6 +395,7 @@ export async function POST(req: Request) {
           streakCount: updatedUser.streakCount,
           bestStreakCount: updatedUser.bestStreakCount,
           streakProtectorUsed: streakUpdate.streakProtectorsUsed > 0,
+          streakProtectorsUsed: streakUpdate.streakProtectorsUsed,
           streakBroken: streakUpdate.streakBroken,
           monthlyBonus,
           sustainabilityTier:
