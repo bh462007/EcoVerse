@@ -160,3 +160,22 @@ def get_leaderboard_post(data: LeaderboardRequest, db: Session = Depends(get_db)
 @app.get("/api/leaderboard")
 def get_leaderboard_get(requesting_user_id: str, db: Session = Depends(get_db)):
     return _build_leaderboard(requesting_user_id, db)
+
+# --- ENDPOINT 5: User Profile ---
+@app.get("/api/users/{user_id}")
+def get_user_profile(user_id: str, db: Session = Depends(get_db)):
+    # 1. Query the database for the specific user
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    
+    # 2. Protect the server with a 404 error if the user doesn't exist
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+        
+    # 3. Return the user's base stats alongside their related scans and badges
+    return {
+        "success": True,
+        "user_id": user.id,
+        "total_emissions_kg": round(user.total_emissions_kg, 2),
+        "scans": user.scans,
+        "badges": user.badges
+    }
