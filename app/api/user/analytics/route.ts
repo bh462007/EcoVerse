@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 import { checkAndRunMonthlyRollover } from '@/lib/monthly-cycle';
+import { verifyCookieAuth } from '@/lib/auth';
 
 // ─── Types returned to the client ───────────────────────────────────────────
 
@@ -85,6 +86,10 @@ export async function GET(req: Request) {
   if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Defense-in-depth: verify the auth_token cookie matches the x-user-email header
+  const authError = await verifyCookieAuth(req, email);
+  if (authError) return authError;
 
   try {
     await dbConnect();

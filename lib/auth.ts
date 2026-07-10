@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
 const FALLBACK_SECRET = 'fallback_secret_for_development_only';
 
@@ -79,4 +80,32 @@ export async function setAuthCookie(email: string, userId: string) {
     maxAge: 7 * 24 * 60 * 60, // 7 days
     path: '/',
   });
+}
+
+/**
+ * Extracts the auth_token cookie from a Request, verifies it, and checks that
+ * the decoded email matches the x-user-email header.
+ *
+ * Returns a 401 NextResponse on failure, or null if the check passes.
+ */
+export async function verifyCookieAuth(
+  req: Request,
+  email: string
+): Promise<NextResponse | null> {
+  const cookies = req.headers.get('cookie') || '';
+  const authToken = cookies
+    .split(';')
+    .find((c) => c.trim().startsWith('auth_token='))
+    ?.split('=')[1];
+
+  if (!authToken) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const payload = await verifyToken(authToken);
+  if (!payload || payload.email !== email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  return null;
 }
