@@ -150,6 +150,7 @@ export async function POST(req: Request) {
             email: userEmail,
             lastScanDate: previousLastScanDate,
             'scans.barcode': { $ne: barcode },
+            streakProtectors: { $gte: streakUpdate.streakProtectorsUsed },
           },
           {
             $inc: {
