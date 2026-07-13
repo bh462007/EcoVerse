@@ -84,19 +84,13 @@ def create_scan(scan_data: ScanCreate, db: Session = Depends(get_db)):
     )
     
     db.commit()
-    return {"success": True, "message": "Scan logged to database!"}
-
-# ... existing user update logic ...
-    db.execute(
-        update(models.User)
-        .where(models.User.id == scan_data.user_id)
-        .values(total_emissions_kg=models.User.total_emissions_kg + scan_data.carbon_footprint_kg)
-    )
     
-    db.commit()
-    
-    # Run the gamification engine to check for new badges
-    evaluate_and_award_badges(scan_data.user_id, db)
+    # Wrap badge evaluation in error handling to prevent scan endpoint failures
+    try:
+        evaluate_and_award_badges(scan_data.user_id, db)
+    except Exception:
+        # Badge evaluation is best-effort; scan is already persisted
+        db.rollback()
 
     return {"success": True, "message": "Scan logged to database!"}
 
@@ -204,29 +198,25 @@ def get_user_profile(user_id: str, db: Session = Depends(get_db), x_caller_id: s
     }
 # --- GAMIFICATION ENGINE ---
 def evaluate_and_award_badges(user_id: str, db: Session):
-    # 1. Count the user's total scans
     scan_count = db.query(models.Scan).filter(models.Scan.user_id == user_id).count()
 
-    # 2. MILESTONE 1: First Scan
-    if scan_count >= 1:
-        existing_badge = db.query(models.UserBadge).filter(
-            models.UserBadge.user_id == user_id,
-            models.UserBadge.badge_id == "first_scan"
-        ).first()
+    # Data-driven milestones: easy to add more thresholds later!
+    milestones = [
+        (1, "first_scan"),
+        (10, "ten_scans"),  # Renamed from 'eco_novice' to match frontend requirements
+    ]
 
-        if not existing_badge:
-            new_badge = models.UserBadge(user_id=user_id, badge_id="first_scan")
-            db.add(new_badge)
-            db.commit()
+    for threshold, badge_id in milestones:
+        if scan_count >= threshold:
+            existing = db.query(models.UserBadge).filter(
+                models.UserBadge.user_id == user_id,
+                models.UserBadge.badge_id == badge_id,
+            ).first()
 
-    # 3. MILESTONE 2: Ten Scans (Eco-Novice)
-    if scan_count >= 10:
-        existing_badge = db.query(models.UserBadge).filter(
-            models.UserBadge.user_id == user_id,
-            models.UserBadge.badge_id == "eco_novice"
-        ).first()
-
-        if not existing_badge:
-            new_badge = models.UserBadge(user_id=user_id, badge_id="eco_novice")
-            db.add(new_badge)
-            db.commit()
+            if not existing:
+                try:
+                    db.add(models.UserBadge(user_id=user_id, badge_id=badge_id))
+                    db.commit()
+                except IntegrityError:
+                    # Catch race conditions if the user double-clicks the scan button
+                    db.rollback()
