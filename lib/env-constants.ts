@@ -1,22 +1,20 @@
 /**
- * Interface representing carbon footprint data for a specific food item.
+ * Interface representing carbon footprint data for a single food item entry.
  */
-export interface CarbonData {
-  [key: string]: {
-    /** The amount of CO2 emitted per kg of the product (kg CO2 / kg) */
-    kgCO2PerKg: number;
-    /** The default weight used for calculations when no explicit weight is given (in kg) */
-    defaultWeight: number;
-    /** The broader category this item belongs to */
-    category: string;
-  };
+export interface CarbonDataEntry {
+  /** The amount of CO2 emitted per kg of the product (kg CO2 / kg) */
+  kgCO2PerKg: number;
+  /** The default weight used for calculations when no explicit weight is given (in kg) */
+  defaultWeight: number;
+  /** The broader category this item belongs to */
+  category: string;
 }
 
 /**
  * Real carbon footprint data based on scientific studies.
  * Provides emission factors for various food products.
  */
-export const CARBON_DATABASE: CarbonData = {
+export const CARBON_DATABASE: Record<string, CarbonDataEntry> = {
   // Meat & Fish
   beef: { kgCO2PerKg: 27.0, defaultWeight: 0.5, category: 'Meat & Fish' },
   lamb: { kgCO2PerKg: 24.5, defaultWeight: 0.5, category: 'Meat & Fish' },
