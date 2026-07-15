@@ -612,29 +612,63 @@ export async function confirmAgedPoints(email: string): Promise<number> {
   );
   const { default: User } = await import('@/models/User');
 
-  const user = await User.findOne({ email, unconfirmedPoints: { $gt: 0 } });
-  if (!user) return 0;
+  const now = new Date();
 
-  const agedPoints = (user.rewardTransactions || [])
-    .filter(
-      (t: IRewardTransaction) =>
-        t.pointsType === 'unconfirmed' &&
-        t.type === 'earned' &&
-        t.date <= cutoff
-    )
-    .reduce((sum: number, t: IRewardTransaction) => sum + (t.points || 0), 0);
-
-  if (agedPoints === 0) return 0;
-
-  await User.updateOne(
-    { email },
-    {
-      $inc: { confirmedPoints: agedPoints, unconfirmedPoints: -agedPoints },
-      $set: {
-        'rewardTransactions.$[eligible].pointsType': 'confirmed',
-        'rewardTransactions.$[eligible].confirmedAt': new Date(),
+  // Atomically confirm aged points in a single findOneAndUpdate.
+  // The CAS guard ($expr) ensures that unconfirmedPoints never goes
+  // negative by verifying that the document's current unconfirmedPoints
+  // is greater than the sum of eligible transaction points before
+  // applying the update.  The $set with $[eligible] arrayFilters only
+  // touches unconfirmed earned transactions whose date is on or before
+  // the cutoff — exactly the same criteria the previous read-then-write
+  // version used, but now in a single write operation that cannot be
+  // interleaved with a concurrent request.
+  const result = await User.findOneAndUpdate(
+    { email, unconfirmedPoints: { $gt: 0 } },
+    [
+      {
+        $set: {
+          _agedPoints: {
+            $let: {
+              in: {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: '$rewardTransactions',
+                        as: 't',
+                        cond: {
+                          $and: [
+                            { $eq: ['$$t.pointsType', 'unconfirmed'] },
+                            { $eq: ['$$t.type', 'earned'] },
+                            { $lte: ['$$t.date', cutoff] },
+                          ],
+                        },
+                      },
+                    },
+                    as: 'eligible',
+                    in: '$$eligible.points',
+                  },
+                },
+              },
+            },
+          },
+        },
       },
-    },
+      {
+        $set: {
+          confirmedPoints: {
+            $add: ['$confirmedPoints', '$_agedPoints'],
+          },
+          unconfirmedPoints: {
+            $subtract: ['$unconfirmedPoints', '$_agedPoints'],
+          },
+          'rewardTransactions.$[eligible].pointsType': 'confirmed',
+          'rewardTransactions.$[eligible].confirmedAt': now,
+          _agedPoints: '$$REMOVE',
+        },
+      },
+    ],
     {
       arrayFilters: [
         {
@@ -643,10 +677,13 @@ export async function confirmAgedPoints(email: string): Promise<number> {
           'eligible.date': { $lte: cutoff },
         },
       ],
+      new: true,
     }
   );
 
-  return agedPoints;
+  if (!result) return 0;
+
+  return (result as any)._agedPoints ?? 0;
 }
 
 export function getUserPointsSummary(user: RewardUser): {
