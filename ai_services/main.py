@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import update, func
@@ -84,6 +84,14 @@ def create_scan(scan_data: ScanCreate, db: Session = Depends(get_db)):
     )
     
     db.commit()
+    
+    # Wrap badge evaluation in error handling to prevent scan endpoint failures
+    try:
+        evaluate_and_award_badges(scan_data.user_id, db)
+    except Exception:
+        # Badge evaluation is best-effort; scan is already persisted
+        db.rollback()
+
     return {"success": True, "message": "Scan logged to database!"}
 
 # --- ENDPOINT 3: Analytics ---
@@ -160,3 +168,55 @@ def get_leaderboard_post(data: LeaderboardRequest, db: Session = Depends(get_db)
 @app.get("/api/leaderboard")
 def get_leaderboard_get(requesting_user_id: str, db: Session = Depends(get_db)):
     return _build_leaderboard(requesting_user_id, db)
+
+# --- ENDPOINT 5: User Profile ---
+@app.get("/api/users/{user_id}")
+def get_user_profile(user_id: str, db: Session = Depends(get_db), x_caller_id: str = Header(None)):
+    
+    # 1. SECURITY CHECK: Check if the x_caller_id matches the user_id in the URL
+    if ___ != ___:
+        raise HTTPException(status_code=403, detail="Not authorized to view this profile.")
+
+    # Fetch the user
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+        
+    # 2. FLATTEN THE LISTS: Convert the ORM objects into plain dictionaries
+    # Hint: Use a list comprehension to grab the fields you want to show the frontend
+    safe_scans = [{"product_name": s.product_name, "carbon_footprint_kg": s.carbon_footprint_kg} for s in user.scans]
+    safe_badges = [ ___ for b in user.badges ] # <-- You write the list comprehension for badges!
+
+    # 3. NULL FALLBACK: Protect the round() function
+    return {
+        "success": True,
+        "user_id": user.id,
+        # Hint: Use 'or 0.0' inside the round function
+        "total_emissions_kg": round( ___ , 2), 
+        "scans": safe_scans,
+        "badges": safe_badges
+    }
+# --- GAMIFICATION ENGINE ---
+def evaluate_and_award_badges(user_id: str, db: Session):
+    scan_count = db.query(models.Scan).filter(models.Scan.user_id == user_id).count()
+
+    # Data-driven milestones: easy to add more thresholds later!
+    milestones = [
+        (1, "first_scan"),
+        (10, "ten_scans"),  # Renamed from 'eco_novice' to match frontend requirements
+    ]
+
+    for threshold, badge_id in milestones:
+        if scan_count >= threshold:
+            existing = db.query(models.UserBadge).filter(
+                models.UserBadge.user_id == user_id,
+                models.UserBadge.badge_id == badge_id,
+            ).first()
+
+            if not existing:
+                try:
+                    db.add(models.UserBadge(user_id=user_id, badge_id=badge_id))
+                    db.commit()
+                except IntegrityError:
+                    # Catch race conditions if the user double-clicks the scan button
+                    db.rollback()

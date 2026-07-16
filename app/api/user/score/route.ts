@@ -300,8 +300,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // Recompute level if achievements were inserted
-    let finalLevel = levelData.level;
+    // Recompute level from the persisted post-scan total; refresh again if
+    // achievement inserts added more points after the main update.
+    let finalLevel = calculateLevel(finalUpdate.totalPointsEarned || 0).level;
     if (actuallyInsertedAchievements > 0) {
       const freshUser = await User.findOne({ email });
       if (freshUser) {
@@ -309,10 +310,11 @@ export async function POST(req: Request) {
           freshUser.totalPointsEarned || 0
         );
         finalLevel = recomputedLevel.level;
-        if (finalLevel > levelData.level) {
-          await User.updateOne({ email }, { $max: { level: finalLevel } });
-        }
       }
+    }
+
+    if (finalLevel > levelData.level) {
+      await User.updateOne({ email }, { $max: { level: finalLevel } });
     }
 
     return NextResponse.json({

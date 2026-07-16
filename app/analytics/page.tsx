@@ -109,9 +109,7 @@ export default function AnalyticsPage() {
     const fetchAnalytics = async () => {
       if (!user?.email) return;
       try {
-        const res = await fetch('/api/user/analytics', {
-          headers: { 'x-user-email': user.email },
-        });
+        const res = await fetch('/api/user/analytics');
         if (!res.ok) throw new Error('Failed to load analytics');
         const json: AnalyticsData = await res.json();
         setData(json);
@@ -267,7 +265,8 @@ export default function AnalyticsPage() {
             <CardContent>
               {monthlyData.length === 0 ? (
                 <p className="text-teal-600 text-sm py-4 text-center">
-                  No historical data yet \u2014 start scanning to build your trend!
+                  No historical data yet \u2014 start scanning to build your
+                  trend!
                 </p>
               ) : (
                 <div className="space-y-4">
@@ -290,7 +289,9 @@ export default function AnalyticsPage() {
                             (Goal: {d.goal} kg)
                           </span>
                           {d.bonusAwarded && (
-                            <span title="Eco bonus awarded">{'\uD83C\uDFC6'}</span>
+                            <span title="Eco bonus awarded">
+                              {'\uD83C\uDFC6'}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -369,14 +370,15 @@ export default function AnalyticsPage() {
               Carbon Footprint by Category
             </CardTitle>
             <CardDescription className="text-teal-500">
-              Breakdown of your CO\u2082 emissions by product category this month
+              Breakdown of your CO\u2082 emissions by product category this
+              month
             </CardDescription>
           </CardHeader>
           <CardContent>
             {categoryBreakdown.length === 0 ? (
               <p className="text-teal-600 text-sm py-4 text-center">
-                No scans this month yet \u2014 start scanning to see your category
-                breakdown!
+                No scans this month yet \u2014 start scanning to see your
+                category breakdown!
               </p>
             ) : (
               <div className="space-y-4">

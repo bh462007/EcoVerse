@@ -37,6 +37,7 @@ export default function BarcodeScanner({
   );
   const videoRef = useRef<HTMLVideoElement>(null);
   const isScanningRef = useRef(false);
+  const isActiveRef = useRef(true);
   const { toast } = useToast();
 
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
@@ -44,12 +45,21 @@ export default function BarcodeScanner({
     codeReaderRef.current = new BrowserMultiFormatReader();
   }
 
-  const stopCamera = useCallback(() => {
+  const cleanupCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
+    }
+    streamRef.current = null;
+
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
     }
   }, []);
+
+  const stopCamera = useCallback(() => {
+    cleanupCamera();
+  }, [cleanupCamera]);
 
   const startCamera = useCallback(async () => {
     try {
@@ -63,6 +73,12 @@ export default function BarcodeScanner({
 
       const mediaStream =
         await navigator.mediaDevices.getUserMedia(constraints);
+
+      if (!isActiveRef.current) {
+        mediaStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       streamRef.current = mediaStream;
 
       if (videoRef.current) {
@@ -70,6 +86,8 @@ export default function BarcodeScanner({
         videoRef.current.play();
       }
     } catch (error) {
+      if (!isActiveRef.current) return;
+
       toast({
         title: 'Camera access denied',
         description: 'Please allow camera access to scan barcodes.',
@@ -114,9 +132,19 @@ export default function BarcodeScanner({
 
   // Hook 1: Handles camera initialization lifecycle
   useEffect(() => {
-    startCamera();
-    return () => stopCamera();
-  }, [startCamera, stopCamera]);
+    isActiveRef.current = true;
+
+    const initializeCamera = async () => {
+      await startCamera();
+    };
+
+    void initializeCamera();
+
+    return () => {
+      isActiveRef.current = false;
+      cleanupCamera();
+    };
+  }, [cleanupCamera, startCamera]);
 
   // Hook 2: Handles the scanning interval orchestration
   useEffect(() => {
@@ -180,6 +208,7 @@ export default function BarcodeScanner({
           <div className="relative">
             <video
               ref={videoRef}
+              data-testid="barcode-video"
               className="w-full h-64 bg-black rounded-lg object-cover"
               autoPlay
               playsInline

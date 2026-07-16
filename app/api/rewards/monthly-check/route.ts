@@ -6,6 +6,7 @@ import dbConnect from '@/lib/mongodb';
 import mongoose from 'mongoose';
 import User, { type IUser } from '@/models/User';
 import { calculateMonthlyBonus } from '@/lib/rewards-system';
+import { verifyCookieAuth } from '@/lib/auth';
 
 type LeanUser = mongoose.FlattenMaps<IUser> & { _id: mongoose.Types.ObjectId };
 
@@ -16,6 +17,10 @@ export async function POST(req: Request) {
   if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Defense-in-depth: verify the auth_token cookie matches the x-user-email header
+  const authError = await verifyCookieAuth(req, email);
+  if (authError) return authError;
 
   try {
     await dbConnect();
@@ -129,6 +134,10 @@ export async function GET(req: Request) {
   if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Defense-in-depth: verify the auth_token cookie matches the x-user-email header
+  const authError = await verifyCookieAuth(req, email);
+  if (authError) return authError;
 
   try {
     await dbConnect();
