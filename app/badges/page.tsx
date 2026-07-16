@@ -17,9 +17,12 @@ export default function BadgesGallery() {
 
   const fetchBadges = useCallback(async () => {
     try {
-      const response = await fetch(`/api/rewards?email=${encodeURIComponent(user?.email || '')}`, {
-        cache: 'no-store',
-      });
+      const response = await fetch(
+        `/api/rewards?email=${encodeURIComponent(user?.email || '')}`,
+        {
+          cache: 'no-store',
+        }
+      );
       if (response.ok) {
         const data = await response.json();
         setBadges(data.allAchievements || []);
@@ -40,16 +43,16 @@ export default function BadgesGallery() {
   }, [user, router, fetchBadges]);
 
   const categories = useMemo(() => {
-    const cats = new Set(badges.map(b => b.category));
+    const cats = new Set(badges.map((b) => b.category));
     return ['All', ...Array.from(cats)].sort();
   }, [badges]);
 
   const filteredBadges = useMemo(() => {
     if (activeCategory === 'All') return badges;
-    return badges.filter(b => b.category === activeCategory);
+    return badges.filter((b) => b.category === activeCategory);
   }, [badges, activeCategory]);
 
-  const earnedCount = badges.filter(b => b.isEarned).length;
+  const earnedCount = badges.filter((b) => b.isEarned).length;
 
   if (!user) return null;
 
@@ -64,11 +67,15 @@ export default function BadgesGallery() {
               Badge Gallery
             </h1>
             <p className="mt-2 text-emerald-50 text-lg max-w-2xl">
-              Track your sustainability milestones. Earn badges by scanning products, maintaining streaks, and keeping your carbon footprint low.
+              Track your sustainability milestones. Earn badges by scanning
+              products, maintaining streaks, and keeping your carbon footprint
+              low.
             </p>
             <div className="mt-6 flex items-center gap-4 bg-white/10 w-fit px-4 py-2 rounded-2xl backdrop-blur-sm border border-white/20">
               <span className="text-sm font-medium">Total Unlocked:</span>
-              <span className="text-2xl font-bold">{loading ? '-' : earnedCount} / {badges.length}</span>
+              <span className="text-2xl font-bold">
+                {loading ? '-' : earnedCount} / {badges.length}
+              </span>
             </div>
           </div>
           {/* Decorative background elements */}
@@ -84,12 +91,16 @@ export default function BadgesGallery() {
             <span>Filter by Category:</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {categories.map(category => (
+            {categories.map((category) => (
               <Button
                 key={category}
                 variant={activeCategory === category ? 'default' : 'outline'}
                 onClick={() => setActiveCategory(category)}
-                className={activeCategory === category ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}
+                className={
+                  activeCategory === category
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    : ''
+                }
               >
                 {category}
               </Button>
@@ -101,12 +112,15 @@ export default function BadgesGallery() {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {[...Array(8)].map((_, i) => (
-              <div key={i} className="h-64 bg-gray-100 animate-pulse rounded-xl"></div>
+              <div
+                key={i}
+                className="h-64 bg-gray-100 animate-pulse rounded-xl"
+              ></div>
             ))}
           </div>
         ) : filteredBadges.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredBadges.map(badge => (
+            {filteredBadges.map((badge) => (
               <BadgeCard key={badge.id} badge={badge} />
             ))}
           </div>

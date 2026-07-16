@@ -173,7 +173,11 @@ export async function GET(req: Request) {
       })),
       allAchievements: ACHIEVEMENTS.map((a) => {
         const isEarned = earnedAchievementIds.includes(a.id);
-        const currentProg = a.currentProgress ? a.currentProgress(user) : (a.condition(user) ? 100 : 0);
+        const currentProg = a.currentProgress
+          ? a.currentProgress(user)
+          : a.condition(user)
+            ? 100
+            : 0;
         const maxProg = a.maxProgress || 100;
         return {
           id: a.id,
@@ -183,9 +187,11 @@ export async function GET(req: Request) {
           icon: a.icon,
           category: a.category || 'Special',
           isEarned,
-          progress: isEarned ? 100 : Math.min(100, Math.round((currentProg / maxProg) * 100)),
+          progress: isEarned
+            ? 100
+            : Math.min(100, Math.round((currentProg / maxProg) * 100)),
           currentValue: isEarned ? maxProg : currentProg,
-          maxValue: maxProg
+          maxValue: maxProg,
         };
       }),
       // New reward shop data

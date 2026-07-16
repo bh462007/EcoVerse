@@ -305,7 +305,11 @@ export const ACHIEVEMENTS: Achievement[] = [
     points: 400,
     icon: '♻️',
     category: 'Carbon',
-    currentProgress: (user) => Math.min((user.scans || []).filter(s => s.carbonEstimate < 1).length, 25),
+    currentProgress: (user) =>
+      Math.min(
+        (user.scans || []).filter((s) => s.carbonEstimate < 1).length,
+        25
+      ),
     maxProgress: 25,
   },
   {
