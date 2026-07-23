@@ -140,9 +140,11 @@ export default function AnalyticsPage() {
     tips,
     currentMonth,
     totalCarbonSaved,
+    averagePerScan,
   } = data;
+  const currentMonthIdx = monthlyData.findIndex((m) => m.isCurrentMonth);
   const previousMonth =
-    monthlyData.length > 1 ? monthlyData[monthlyData.length - 2] : null;
+    currentMonthIdx > 0 ? monthlyData[currentMonthIdx - 1] : null;
   const carbonChange = previousMonth
     ? currentMonth.carbon - previousMonth.carbon
     : 0;
@@ -161,7 +163,7 @@ export default function AnalyticsPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
           <Card className="bg-teal-100 border-none shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-teal-700">
@@ -214,6 +216,21 @@ export default function AnalyticsPage() {
           <Card className="bg-teal-100 border-none shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-teal-700">
+                Avg per Scan
+              </CardTitle>
+              <Target className="h-4 w-4 text-green-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-teal-800">
+                {averagePerScan} kg
+              </div>
+              <p className="text-xs text-teal-700">CO\u2082 per product</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-teal-100 border-none shadow-md">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-teal-700">
                 Goal Achievement
               </CardTitle>
               <Target className="h-4 w-4 text-green-400" />
@@ -243,7 +260,7 @@ export default function AnalyticsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {monthlyData.length === 0 ? (
+              {monthlyData.every((m) => m.scanned === 0) ? (
                 <p className="text-teal-600 text-sm py-4 text-center">
                   No historical data yet \u2014 start scanning to build your
                   trend!

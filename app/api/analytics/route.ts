@@ -33,9 +33,7 @@ export async function GET(req: Request) {
     }
 
     const scans = user.scans || [];
-    const monthlyCarbon = user.monthlyCarbon || 0;
     const monthlyCarbonGoal = user.monthlyCarbonGoal || 40;
-    const totalScanned = user.totalScanned || 0;
 
     const now = new Date();
     const currentMonthIndex = now.getMonth();
@@ -46,10 +44,7 @@ export async function GET(req: Request) {
       monthTotals[i] = { carbon: 0, scanned: 0 };
     }
 
-    let totalYearImpact = 0;
     let currentMonthScanned = 0;
-    let previousMonthScanned = 0;
-    let previousMonthCarbon = 0;
 
     for (const scan of scans) {
       if (!scan.date) continue;
@@ -60,21 +55,14 @@ export async function GET(req: Request) {
       if (scanYear === currentYear && scanMonth in monthTotals) {
         monthTotals[scanMonth].carbon += scan.carbonEstimate || 0;
         monthTotals[scanMonth].scanned += 1;
-        totalYearImpact += scan.carbonEstimate || 0;
       }
 
       if (scanYear === currentYear && scanMonth === currentMonthIndex) {
         currentMonthScanned += 1;
       }
-
-      if (scanYear === currentYear && scanMonth === currentMonthIndex - 1) {
-        previousMonthCarbon += scan.carbonEstimate || 0;
-        previousMonthScanned += 1;
-      }
     }
 
     if (monthTotals[currentMonthIndex]) {
-      monthTotals[currentMonthIndex].carbon = monthlyCarbon;
       currentMonthScanned = monthTotals[currentMonthIndex].scanned;
     }
 
@@ -158,7 +146,7 @@ export async function GET(req: Request) {
       weeklyProgress,
       tips,
       currentMonth: {
-        carbon: monthlyCarbon,
+        carbon: parseFloat(monthTotals[currentMonthIndex].carbon.toFixed(2)),
         scanned: currentMonthScanned,
         goal: monthlyCarbonGoal,
         month: MONTHS[currentMonthIndex],
@@ -233,9 +221,20 @@ function generateTips(
 
   if (highCarbonCategory) {
     const cat = highCarbonCategory.category.toLowerCase();
-    let tip: { title: string; description: string; impact: string; difficulty: string; icon: string };
+    let tip: {
+      title: string;
+      description: string;
+      impact: string;
+      difficulty: string;
+      icon: string;
+    };
 
-    if (cat.includes('food') || cat.includes('groceries') || cat.includes('meat') || cat.includes('dairy')) {
+    if (
+      cat.includes('food') ||
+      cat.includes('groceries') ||
+      cat.includes('meat') ||
+      cat.includes('dairy')
+    ) {
       tip = {
         title: `Reduce ${highCarbonCategory.category} Consumption`,
         description: `${highCarbonCategory.category} makes up ${highCarbonCategory.percentage}% of your footprint. Try plant-based alternatives 2-3 times per week.`,
@@ -251,7 +250,11 @@ function generateTips(
         difficulty: 'Medium',
         icon: '\uD83D\uDE8C',
       };
-    } else if (cat.includes('energy') || cat.includes('electric') || cat.includes('utilities')) {
+    } else if (
+      cat.includes('energy') ||
+      cat.includes('electric') ||
+      cat.includes('utilities')
+    ) {
       tip = {
         title: `Reduce ${highCarbonCategory.category} Usage`,
         description: `${highCarbonCategory.category} makes up ${highCarbonCategory.percentage}% of your footprint. Switch to energy-efficient appliances and LED bulbs.`,
