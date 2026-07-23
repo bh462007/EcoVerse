@@ -231,6 +231,12 @@ UserSchema.path('confirmedPoints').validate(
   'validate-confirmed-points'
 );
 
+// Index for analytics aggregation: scans grouped by month.
+UserSchema.index({ email: 1, 'scans.date': 1 });
+
+// Index for analytics aggregation: scans grouped by category.
+UserSchema.index({ email: 1, 'scans.category': 1 });
+
 // Schema hydration middleware: fill in missing fields that may be absent
 // on documents inserted by Firebase Cloud Functions (which bypass Mongoose).
 // Runs after findOne / find / findOneAndUpdate so the returned document
