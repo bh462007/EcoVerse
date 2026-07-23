@@ -43,10 +43,19 @@ interface WeeklyDataPoint {
   target: number;
 }
 
+interface SustainabilityTip {
+  title: string;
+  description: string;
+  impact: string;
+  difficulty: string;
+  icon: string;
+}
+
 interface AnalyticsData {
   monthlyData: MonthlyDataPoint[];
   categoryBreakdown: CategoryDataPoint[];
   weeklyProgress: WeeklyDataPoint[];
+  tips: SustainabilityTip[];
   currentMonth: {
     carbon: number;
     scanned: number;
@@ -55,6 +64,7 @@ interface AnalyticsData {
     year: number;
   };
   totalCarbonSaved: number;
+  averagePerScan: number;
 }
 
 const CATEGORY_COLORS = [
@@ -68,37 +78,6 @@ const CATEGORY_COLORS = [
   'bg-pink-500',
 ];
 
-const sustainabilityTips = [
-  {
-    title: 'Reduce Meat Consumption',
-    description: 'Try plant-based alternatives 2\u20133 times per week',
-    impact: 'Could save 12 kg CO\u2082/month',
-    difficulty: 'Medium',
-    icon: '\uD83E\uDD66',
-  },
-  {
-    title: 'Choose Local Produce',
-    description: 'Buy fruits and vegetables from local farmers',
-    impact: 'Could save 3 kg CO\u2082/month',
-    difficulty: 'Easy',
-    icon: '\uD83C\uDF3F',
-  },
-  {
-    title: 'Minimise Packaging',
-    description: 'Choose products with less plastic packaging',
-    impact: 'Could save 2 kg CO\u2082/month',
-    difficulty: 'Easy',
-    icon: '\u267B\uFE0F',
-  },
-  {
-    title: 'Seasonal Shopping',
-    description: 'Buy seasonal fruits and vegetables',
-    impact: 'Could save 4 kg CO\u2082/month',
-    difficulty: 'Easy',
-    icon: '\uD83C\uDF4E',
-  },
-];
-
 export default function AnalyticsPage() {
   const { user } = useAuth();
   const [data, setData] = useState<AnalyticsData | null>(null);
@@ -109,7 +88,7 @@ export default function AnalyticsPage() {
     const fetchAnalytics = async () => {
       if (!user?.email) return;
       try {
-        const res = await fetch('/api/user/analytics');
+        const res = await fetch('/api/analytics');
         if (!res.ok) throw new Error('Failed to load analytics');
         const json: AnalyticsData = await res.json();
         setData(json);
@@ -158,6 +137,7 @@ export default function AnalyticsPage() {
     monthlyData,
     categoryBreakdown,
     weeklyProgress,
+    tips,
     currentMonth,
     totalCarbonSaved,
   } = data;
@@ -423,7 +403,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {sustainabilityTips.map((tip, index) => (
+              {tips.map((tip, index) => (
                 <div
                   key={index}
                   className="p-4 rounded-lg bg-teal-200/50 border border-teal-600"

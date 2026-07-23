@@ -37,45 +37,72 @@ export async function GET(req: Request) {
     const monthlyCarbonGoal = user.monthlyCarbonGoal || 40;
     const totalScanned = user.totalScanned || 0;
 
-    const monthTotals: Record<number, { carbon: number; scanned: number }> = {};
     const now = new Date();
-    const currentMonth = now.getMonth();
+    const currentMonthIndex = now.getMonth();
+    const currentYear = now.getFullYear();
 
+    const monthTotals: Record<number, { carbon: number; scanned: number }> = {};
     for (let i = 0; i < 12; i++) {
       monthTotals[i] = { carbon: 0, scanned: 0 };
     }
 
+    let totalYearImpact = 0;
+    let currentMonthScanned = 0;
+    let previousMonthScanned = 0;
+    let previousMonthCarbon = 0;
+
     for (const scan of scans) {
-      if (scan.date) {
-        const d = new Date(scan.date);
-        const month = d.getMonth();
-        if (monthTotals[month]) {
-          monthTotals[month].carbon += scan.carbonEstimate || 0;
-          monthTotals[month].scanned += 1;
-        }
+      if (!scan.date) continue;
+      const d = new Date(scan.date);
+      const scanYear = d.getFullYear();
+      const scanMonth = d.getMonth();
+
+      if (scanYear === currentYear && scanMonth in monthTotals) {
+        monthTotals[scanMonth].carbon += scan.carbonEstimate || 0;
+        monthTotals[scanMonth].scanned += 1;
+        totalYearImpact += scan.carbonEstimate || 0;
+      }
+
+      if (scanYear === currentYear && scanMonth === currentMonthIndex) {
+        currentMonthScanned += 1;
+      }
+
+      if (scanYear === currentYear && scanMonth === currentMonthIndex - 1) {
+        previousMonthCarbon += scan.carbonEstimate || 0;
+        previousMonthScanned += 1;
       }
     }
 
-    if (monthTotals[currentMonth]) {
-      monthTotals[currentMonth].carbon = monthlyCarbon;
+    if (monthTotals[currentMonthIndex]) {
+      monthTotals[currentMonthIndex].carbon = monthlyCarbon;
+      currentMonthScanned = monthTotals[currentMonthIndex].scanned;
     }
 
     const monthlyData = MONTHS.map((month, i) => ({
       month,
+      year: currentYear,
       carbon: parseFloat(monthTotals[i].carbon.toFixed(2)),
       scanned: monthTotals[i].scanned,
       goal: monthlyCarbonGoal,
+      isCurrentMonth: i === currentMonthIndex,
+      bonusAwarded: false,
     }));
 
     const categoryTotals: Record<string, { carbon: number; count: number }> =
       {};
     for (const scan of scans) {
-      const cat = scan.category || 'Unknown';
-      if (!categoryTotals[cat]) {
-        categoryTotals[cat] = { carbon: 0, count: 0 };
+      const d = new Date(scan.date);
+      if (
+        d.getFullYear() === currentYear &&
+        d.getMonth() === currentMonthIndex
+      ) {
+        const cat = scan.category || 'Unknown';
+        if (!categoryTotals[cat]) {
+          categoryTotals[cat] = { carbon: 0, count: 0 };
+        }
+        categoryTotals[cat].carbon += scan.carbonEstimate || 0;
+        categoryTotals[cat].count += 1;
       }
-      categoryTotals[cat].carbon += scan.carbonEstimate || 0;
-      categoryTotals[cat].count += 1;
     }
 
     const totalCategoryCarbon = Object.values(categoryTotals).reduce(
@@ -95,26 +122,49 @@ export async function GET(req: Request) {
 
     const weeklyProgress = buildWeeklyProgress(
       scans,
-      currentMonth,
+      currentMonthIndex,
+      currentYear,
       monthlyCarbonGoal
     );
 
     const tips = generateTips(categoryBreakdown);
 
-    const totalImpact = parseFloat(
-      monthlyData.reduce((sum, m) => sum + m.carbon, 0).toFixed(2)
+    const totalCarbonSaved = parseFloat(
+      monthlyData
+        .slice(0, currentMonthIndex)
+        .reduce((sum, m) => sum + Math.max(m.goal - m.carbon, 0), 0)
+        .toFixed(2)
     );
+
+    const filteredScans = scans.filter((s) => {
+      const d = new Date(s.date);
+      return d.getFullYear() === currentYear;
+    });
     const averagePerScan =
-      totalScanned > 0
-        ? parseFloat((totalImpact / totalScanned).toFixed(2))
+      filteredScans.length > 0
+        ? parseFloat(
+            (
+              filteredScans.reduce(
+                (sum, s) => sum + (s.carbonEstimate || 0),
+                0
+              ) / filteredScans.length
+            ).toFixed(2)
+          )
         : 0;
 
     return NextResponse.json({
       monthlyData,
       categoryBreakdown,
       weeklyProgress,
-      tips: tips,
-      totalImpact,
+      tips,
+      currentMonth: {
+        carbon: monthlyCarbon,
+        scanned: currentMonthScanned,
+        goal: monthlyCarbonGoal,
+        month: MONTHS[currentMonthIndex],
+        year: currentYear,
+      },
+      totalCarbonSaved,
       averagePerScan,
     });
   } catch (error) {
@@ -129,11 +179,10 @@ export async function GET(req: Request) {
 function buildWeeklyProgress(
   scans: Array<{ date?: Date | string; carbonEstimate?: number }>,
   currentMonth: number,
+  currentYear: number,
   goal: number
 ) {
   const weeklyData: Record<string, { carbon: number; count: number }> = {};
-  const now = new Date();
-  const year = now.getFullYear();
 
   for (let w = 1; w <= 4; w++) {
     weeklyData[`Week ${w}`] = { carbon: 0, count: 0 };
@@ -142,7 +191,8 @@ function buildWeeklyProgress(
   for (const scan of scans) {
     if (!scan.date) continue;
     const d = new Date(scan.date);
-    if (d.getMonth() !== currentMonth || d.getFullYear() !== year) continue;
+    if (d.getMonth() !== currentMonth || d.getFullYear() !== currentYear)
+      continue;
 
     const day = d.getDate();
     let weekIndex = Math.min(Math.ceil(day / 7), 4);
@@ -176,17 +226,50 @@ function generateTips(
     description: string;
     impact: string;
     difficulty: string;
+    icon: string;
   }> = [];
 
   const highCarbonCategory = categoryBreakdown.find((c) => c.percentage > 30);
 
   if (highCarbonCategory) {
-    tips.push({
-      title: `Reduce ${highCarbonCategory.category} Consumption`,
-      description: `${highCarbonCategory.category} makes up ${highCarbonCategory.percentage}% of your footprint. Try plant-based alternatives 2-3 times per week.`,
-      impact: `Could save ~${Math.round(highCarbonCategory.carbon * 0.3)}kg CO₂/month`,
-      difficulty: 'Medium',
-    });
+    const cat = highCarbonCategory.category.toLowerCase();
+    let tip: { title: string; description: string; impact: string; difficulty: string; icon: string };
+
+    if (cat.includes('food') || cat.includes('groceries') || cat.includes('meat') || cat.includes('dairy')) {
+      tip = {
+        title: `Reduce ${highCarbonCategory.category} Consumption`,
+        description: `${highCarbonCategory.category} makes up ${highCarbonCategory.percentage}% of your footprint. Try plant-based alternatives 2-3 times per week.`,
+        impact: `Could save ~${Math.round(highCarbonCategory.carbon * 0.3)} kg CO\u2082/month`,
+        difficulty: 'Medium',
+        icon: '\uD83E\uDD66',
+      };
+    } else if (cat.includes('transport') || cat.includes('travel')) {
+      tip = {
+        title: `Reduce ${highCarbonCategory.category} Emissions`,
+        description: `${highCarbonCategory.category} makes up ${highCarbonCategory.percentage}% of your footprint. Consider carpooling, public transit, or cycling.`,
+        impact: `Could save ~${Math.round(highCarbonCategory.carbon * 0.3)} kg CO\u2082/month`,
+        difficulty: 'Medium',
+        icon: '\uD83D\uDE8C',
+      };
+    } else if (cat.includes('energy') || cat.includes('electric') || cat.includes('utilities')) {
+      tip = {
+        title: `Reduce ${highCarbonCategory.category} Usage`,
+        description: `${highCarbonCategory.category} makes up ${highCarbonCategory.percentage}% of your footprint. Switch to energy-efficient appliances and LED bulbs.`,
+        impact: `Could save ~${Math.round(highCarbonCategory.carbon * 0.3)} kg CO\u2082/month`,
+        difficulty: 'Medium',
+        icon: '\uD83D\uDCA1',
+      };
+    } else {
+      tip = {
+        title: `Reduce ${highCarbonCategory.category} Footprint`,
+        description: `${highCarbonCategory.category} makes up ${highCarbonCategory.percentage}% of your footprint. Look for eco-friendly alternatives.`,
+        impact: `Could save ~${Math.round(highCarbonCategory.carbon * 0.3)} kg CO\u2082/month`,
+        difficulty: 'Medium',
+        icon: '\uD83C\uDF3F',
+      };
+    }
+
+    tips.push(tip);
   }
 
   tips.push(
@@ -194,22 +277,25 @@ function generateTips(
       title: 'Choose Local Produce',
       description:
         'Buy fruits and vegetables from local farmers to reduce transport emissions.',
-      impact: 'Could save 3kg CO₂/month',
+      impact: 'Could save 3 kg CO\u2082/month',
       difficulty: 'Easy',
+      icon: '\uD83C\uDF3F',
     },
     {
-      title: 'Minimize Packaging',
+      title: 'Minimise Packaging',
       description:
         'Choose products with less plastic packaging to reduce waste.',
-      impact: 'Could save 2kg CO₂/month',
+      impact: 'Could save 2 kg CO\u2082/month',
       difficulty: 'Easy',
+      icon: '\u267B\uFE0F',
     },
     {
       title: 'Seasonal Shopping',
       description:
-        'Buy seasonal fruits and vegetables — they have a lower carbon footprint.',
-      impact: 'Could save 4kg CO₂/month',
+        'Buy seasonal fruits and vegetables \u2014 they have a lower carbon footprint.',
+      impact: 'Could save 4 kg CO\u2082/month',
       difficulty: 'Easy',
+      icon: '\uD83C\uDF4E',
     }
   );
 
