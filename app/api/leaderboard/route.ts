@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
               totalPointsEarned: target.totalPointsEarned,
               level: target.level,
               totalScanned: target.totalScanned,
-              _id: { $lt: target._id },
+              _id: { $gt: target._id },
             },
           ],
         });
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
       .sort({ totalPointsEarned: -1, level: -1, totalScanned: -1, _id: -1 })
       .limit(limit + 1)
       .lean()
-      .allowDiskUse();
+      .allowDiskUse(true);
 
     const hasMore = users.length > limit;
     if (hasMore) users.pop();
